@@ -34,8 +34,6 @@ export default function Descansos() {
   const [uploading, setUploading] = useState(false);
   
   const [formData, setFormData] = useState({
-    fecha_inicio: "",
-    fecha_fin: "",
     sede: "",
     imagen: null as File | null,
   });
@@ -112,11 +110,14 @@ export default function Descansos() {
       // Use colaborador's sede if not provided in form
       const sedeToUse = formData.sede || colaboradorData.sede;
 
+      // Fechas temporales que serán actualizadas por n8n
+      const fechaTemporal = new Date().toISOString().split('T')[0];
+
       const { data: insertData, error } = await supabase.from("descansos_medicos").insert({
         user_id: user?.id,
         colaborador_id: colaboradorData.id,
-        fecha_inicio: formData.fecha_inicio,
-        fecha_fin: formData.fecha_fin,
+        fecha_inicio: fechaTemporal,
+        fecha_fin: fechaTemporal,
         sede: sedeToUse,
         imagen_url: imagenUrl,
       }).select().single();
@@ -135,8 +136,6 @@ export default function Descansos() {
           colaborador_id: colaboradorData.id,
           dni: colaboradorData.dni,
           nombre_completo: `${colaboradorData.apellidos}, ${colaboradorData.nombres}`,
-          fecha_inicio: formData.fecha_inicio,
-          fecha_fin: formData.fecha_fin,
           sede: sedeToUse,
           imagen_url: imagenUrl,
           estado: 'Pendiente'
@@ -144,7 +143,7 @@ export default function Descansos() {
       }
 
       setIsDialogOpen(false);
-      setFormData({ fecha_inicio: "", fecha_fin: "", sede: "", imagen: null });
+      setFormData({ sede: "", imagen: null });
       fetchDescansos();
     } catch (error: any) {
       toast({
@@ -197,30 +196,10 @@ export default function Descansos() {
               <DialogHeader>
                 <DialogTitle>Registrar Descanso Médico</DialogTitle>
                 <DialogDescription>
-                  Completa los datos de tu descanso médico
+                  Sube tu certificado médico y las fechas se extraerán automáticamente
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="fecha_inicio">Fecha de Inicio</Label>
-                  <Input
-                    id="fecha_inicio"
-                    type="date"
-                    value={formData.fecha_inicio}
-                    onChange={(e) => setFormData({ ...formData, fecha_inicio: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="fecha_fin">Fecha de Fin</Label>
-                  <Input
-                    id="fecha_fin"
-                    type="date"
-                    value={formData.fecha_fin}
-                    onChange={(e) => setFormData({ ...formData, fecha_fin: e.target.value })}
-                    required
-                  />
-                </div>
                 <div className="space-y-2">
                   <Label htmlFor="sede">Sede</Label>
                   <Input
@@ -232,13 +211,17 @@ export default function Descansos() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="imagen">Certificado Médico (Imagen)</Label>
+                  <Label htmlFor="imagen">Certificado Médico (Imagen) *</Label>
                   <Input
                     id="imagen"
                     type="file"
                     accept="image/*"
                     onChange={(e) => setFormData({ ...formData, imagen: e.target.files?.[0] || null })}
+                    required
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Las fechas se extraerán automáticamente del certificado médico
+                  </p>
                 </div>
                 <Button type="submit" className="w-full" disabled={uploading}>
                   {uploading ? "Subiendo..." : "Registrar Descanso"}
