@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
     console.log("Enviando webhook a n8n:", payload);
 
     // Send to n8n webhook
-    const n8nWebhookUrl = "https://REDACTED-N8N-HOST.example/webhook/descansos";
+    const n8nWebhookUrl = "https://REDACTED-N8N-HOST.example/webhook-test/descansos";
 
     const response = await fetch(n8nWebhookUrl, {
       method: "POST",
