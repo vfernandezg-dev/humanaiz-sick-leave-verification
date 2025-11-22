@@ -94,20 +94,23 @@ export default function Descansos() {
       // Get colaborador_id
       const { data: colaboradorData, error: colaboradorError } = await supabase
         .from("colaboradores")
-        .select("id, dni, nombres, apellidos")
+        .select("id, dni, nombres, apellidos, sede")
         .eq("user_id", user?.id)
         .maybeSingle();
 
       if (!colaboradorData) {
-        throw new Error("No se encontró tu registro de colaborador. Por favor contacta con RRHH para que te registren en el sistema.");
+        throw new Error("Tu cuenta aún no está vinculada como colaborador. Por favor completa tu perfil en la sección de configuración o contacta con RRHH.");
       }
+
+      // Use colaborador's sede if not provided in form
+      const sedeToUse = formData.sede || colaboradorData.sede;
 
       const { data: insertData, error } = await supabase.from("descansos_medicos").insert({
         user_id: user?.id,
         colaborador_id: colaboradorData.id,
         fecha_inicio: formData.fecha_inicio,
         fecha_fin: formData.fecha_fin,
-        sede: formData.sede,
+        sede: sedeToUse,
         imagen_url: imagenUrl,
       }).select().single();
 
