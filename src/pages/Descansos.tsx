@@ -98,8 +98,15 @@ export default function Descansos() {
         .eq("user_id", user?.id)
         .maybeSingle();
 
+      console.log("Colaborador query result:", { colaboradorData, colaboradorError, userId: user?.id });
+
+      if (colaboradorError) {
+        console.error("Error fetching colaborador:", colaboradorError);
+        throw new Error(`Error al buscar colaborador: ${colaboradorError.message}`);
+      }
+
       if (!colaboradorData) {
-        throw new Error("Tu cuenta aún no está vinculada como colaborador. Por favor completa tu perfil en la sección de configuración o contacta con RRHH.");
+        throw new Error("Tu cuenta aún no está vinculada como colaborador. Por favor contacta con RRHH.");
       }
 
       // Use colaborador's sede if not provided in form
