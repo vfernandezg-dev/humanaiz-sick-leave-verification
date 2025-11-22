@@ -30,8 +30,16 @@ Deno.serve(async (req) => {
       body: JSON.stringify(payload),
     });
 
+    console.log("Respuesta de n8n:", {
+      status: response.status,
+      statusText: response.statusText,
+      url: n8nWebhookUrl
+    });
+
     if (!response.ok) {
-      throw new Error(`n8n webhook failed: ${response.status} ${response.statusText}`);
+      const errorText = await response.text().catch(() => "No response body");
+      console.error("Error detallado de n8n:", errorText);
+      throw new Error(`n8n webhook failed: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     const result = await response.json().catch(() => ({}));
