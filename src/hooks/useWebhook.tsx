@@ -14,15 +14,17 @@ export function useWebhook() {
       });
 
       if (error) {
-        console.error('Error enviando webhook:', error);
-        return { error };
+        console.warn('Webhook no enviado:', error.message);
+        // No retornar error para que no bloquee la aplicación
+        return { data: null, error: null };
       }
 
       console.log('Webhook enviado exitosamente:', result);
       return { data: result, error: null };
     } catch (error: any) {
-      console.error('Error en useWebhook:', error);
-      return { error };
+      console.warn('Error en useWebhook:', error);
+      // No retornar error para que no bloquee la aplicación
+      return { data: null, error: null };
     }
   };
 
