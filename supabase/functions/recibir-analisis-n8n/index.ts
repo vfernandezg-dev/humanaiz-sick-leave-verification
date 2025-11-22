@@ -6,12 +6,12 @@ const corsHeaders = {
 };
 
 interface AnalisisPayload {
-  descanso_id: string;
+  descanso_id?: string;
   output: {
     extraidos?: any;
     validaciones?: any;
     estado_documento?: string;
-    motivos_rechazo?: string[];
+    motivos_rechazo?: string[] | string;
     comentario_general?: string;
   };
 }
@@ -26,6 +26,25 @@ Deno.serve(async (req) => {
 
     console.log("Recibiendo análisis de n8n:", payload);
 
+    // Obtener descanso_id desde query params o payload
+    const url = new URL(req.url);
+    const descansoId = payload.descanso_id || url.searchParams.get('descanso_id');
+
+    if (!descansoId) {
+      throw new Error("descanso_id es requerido como parámetro de query o en el body");
+    }
+
+    // Normalizar motivos_rechazo a array si viene como string
+    let motivosRechazo = payload.output.motivos_rechazo;
+    if (typeof motivosRechazo === 'string') {
+      motivosRechazo = motivosRechazo.split(',').map(m => m.trim()).filter(m => m.length > 0);
+    }
+
+    const analisisNormalizado = {
+      ...payload.output,
+      motivos_rechazo: motivosRechazo
+    };
+
     // Crear cliente de Supabase
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -35,16 +54,16 @@ Deno.serve(async (req) => {
     const { error } = await supabase
       .from('descansos_medicos')
       .update({
-        analisis_n8n: payload.output
+        analisis_n8n: analisisNormalizado
       })
-      .eq('id', payload.descanso_id);
+      .eq('id', descansoId);
 
     if (error) {
       console.error("Error actualizando descanso:", error);
       throw new Error(`Error al guardar análisis: ${error.message}`);
     }
 
-    console.log("Análisis guardado exitosamente para descanso:", payload.descanso_id);
+    console.log("Análisis guardado exitosamente para descanso:", descansoId);
 
     return new Response(
       JSON.stringify({
