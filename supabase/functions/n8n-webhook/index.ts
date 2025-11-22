@@ -19,20 +19,8 @@ Deno.serve(async (req) => {
     
     console.log('Enviando webhook a n8n:', payload)
 
-    // Send to n8n webhook - URL should be configured via environment variable
-    const n8nWebhookUrl = Deno.env.get('N8N_WEBHOOK_URL')
-    
-    if (!n8nWebhookUrl) {
-      console.log('N8N_WEBHOOK_URL no configurada, omitiendo envío de webhook')
-      return new Response(
-        JSON.stringify({ 
-          success: true,
-          message: 'Webhook no enviado (URL no configurada)',
-          skipped: true
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-      )
-    }
+    // Send to n8n webhook - Use environment variable or default to localhost
+    const n8nWebhookUrl = Deno.env.get('N8N_WEBHOOK_URL') || 'http://localhost:4321/webhook/descansos'
     
     const response = await fetch(n8nWebhookUrl, {
       method: 'POST',
