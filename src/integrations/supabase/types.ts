@@ -70,6 +70,7 @@ export type Database = {
       }
       descansos_medicos: {
         Row: {
+          analisis_n8n: Json | null
           colaborador_id: string
           comentario_rrhh: string | null
           created_at: string
@@ -83,6 +84,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          analisis_n8n?: Json | null
           colaborador_id: string
           comentario_rrhh?: string | null
           created_at?: string
@@ -96,6 +98,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          analisis_n8n?: Json | null
           colaborador_id?: string
           comentario_rrhh?: string | null
           created_at?: string
