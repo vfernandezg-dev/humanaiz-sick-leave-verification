@@ -138,15 +138,6 @@ export function useAuth() {
 
       if (error) throw error;
 
-      // Assign colaborador role by default
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase.from("user_roles").insert({
-          user_id: user.id,
-          role: "colaborador",
-        });
-      }
-
       toast({
         title: "Registro exitoso",
         description: "Tu cuenta ha sido creada correctamente",
