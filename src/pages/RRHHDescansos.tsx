@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { useAuth } from "@/hooks/useAuth";
+import { useWebhook } from "@/hooks/useWebhook";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +37,7 @@ export default function RRHHDescansos() {
   const { user, role, loading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { sendWebhook } = useWebhook();
   const [descansos, setDescansos] = useState<DescansoMedico[]>([]);
   const [selectedDescanso, setSelectedDescanso] = useState<DescansoMedico | null>(null);
   const [comentario, setComentario] = useState("");
@@ -123,6 +125,23 @@ export default function RRHHDescansos() {
         title: "Éxito",
         description: `Descanso ${nuevoEstado.toLowerCase()} correctamente`,
       });
+
+      // Send webhook to n8n
+      if (selectedDescanso) {
+        await sendWebhook('descanso_medico_actualizado', {
+          descanso_id: selectedDescanso.id,
+          colaborador_id: selectedDescanso.colaboradores.dni,
+          dni: selectedDescanso.colaboradores.dni,
+          nombre_completo: `${selectedDescanso.colaboradores.apellidos}, ${selectedDescanso.colaboradores.nombres}`,
+          fecha_inicio: selectedDescanso.fecha_inicio,
+          fecha_fin: selectedDescanso.fecha_fin,
+          sede: selectedDescanso.sede,
+          estado_anterior: selectedDescanso.estado,
+          estado_nuevo: nuevoEstado,
+          comentario_rrhh: comentario || null
+        });
+      }
+
       setSelectedDescanso(null);
       setComentario("");
       fetchDescansos();

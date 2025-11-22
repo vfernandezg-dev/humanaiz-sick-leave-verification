@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { useAuth } from "@/hooks/useAuth";
+import { useWebhook } from "@/hooks/useWebhook";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +28,7 @@ export default function Descansos() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { sendWebhook } = useWebhook();
   const [descansos, setDescansos] = useState<DescansoMedico[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -92,18 +94,18 @@ export default function Descansos() {
       // Get colaborador_id
       const { data: colaboradorData } = await supabase
         .from("colaboradores")
-        .select("id")
+        .select("id, dni, nombres, apellidos")
         .eq("user_id", user?.id)
         .single();
 
-      const { error } = await supabase.from("descansos_medicos").insert({
+      const { data: insertData, error } = await supabase.from("descansos_medicos").insert({
         user_id: user?.id,
         colaborador_id: colaboradorData?.id,
         fecha_inicio: formData.fecha_inicio,
         fecha_fin: formData.fecha_fin,
         sede: formData.sede,
         imagen_url: imagenUrl,
-      });
+      }).select().single();
 
       if (error) throw error;
 
@@ -111,6 +113,20 @@ export default function Descansos() {
         title: "Éxito",
         description: "Descanso médico registrado correctamente",
       });
+
+      // Send webhook to n8n
+      if (colaboradorData && insertData) {
+        await sendWebhook('descanso_medico_creado', {
+          descanso_id: insertData.id,
+          colaborador_id: colaboradorData.id,
+          dni: colaboradorData.dni,
+          nombre_completo: `${colaboradorData.apellidos}, ${colaboradorData.nombres}`,
+          fecha_inicio: formData.fecha_inicio,
+          fecha_fin: formData.fecha_fin,
+          sede: formData.sede,
+          estado: 'Pendiente'
+        });
+      }
 
       setIsDialogOpen(false);
       setFormData({ fecha_inicio: "", fecha_fin: "", sede: "", imagen: null });

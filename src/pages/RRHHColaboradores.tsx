@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { useAuth } from "@/hooks/useAuth";
+import { useWebhook } from "@/hooks/useWebhook";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +32,7 @@ export default function RRHHColaboradores() {
   const { user, role, loading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { sendWebhook } = useWebhook();
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [filteredColaboradores, setFilteredColaboradores] = useState<Colaborador[]>([]);
   
