@@ -137,7 +137,8 @@ export default function Descansos() {
           nombre_completo: `${colaboradorData.apellidos}, ${colaboradorData.nombres}`,
           fecha_inicio: formData.fecha_inicio,
           fecha_fin: formData.fecha_fin,
-          sede: formData.sede,
+          sede: sedeToUse,
+          imagen_url: imagenUrl,
           estado: 'Pendiente'
         });
       }
