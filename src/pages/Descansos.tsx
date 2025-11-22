@@ -92,15 +92,19 @@ export default function Descansos() {
       }
 
       // Get colaborador_id
-      const { data: colaboradorData } = await supabase
+      const { data: colaboradorData, error: colaboradorError } = await supabase
         .from("colaboradores")
         .select("id, dni, nombres, apellidos")
         .eq("user_id", user?.id)
-        .single();
+        .maybeSingle();
+
+      if (!colaboradorData) {
+        throw new Error("No se encontró tu registro de colaborador. Por favor contacta con RRHH para que te registren en el sistema.");
+      }
 
       const { data: insertData, error } = await supabase.from("descansos_medicos").insert({
         user_id: user?.id,
-        colaborador_id: colaboradorData?.id,
+        colaborador_id: colaboradorData.id,
         fecha_inicio: formData.fecha_inicio,
         fecha_fin: formData.fecha_fin,
         sede: formData.sede,
