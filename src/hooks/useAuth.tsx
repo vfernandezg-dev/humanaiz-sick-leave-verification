@@ -66,23 +66,6 @@ export function useAuth() {
 
   const signIn = async (dni: string, password: string) => {
     try {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("dni", dni)
-        .single();
-
-      if (!profile) {
-        throw new Error("DNI no encontrado");
-      }
-
-      // Get email from auth.users
-      const { data: userData } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", profile.id)
-        .single();
-
       // Use DNI as email format for authentication
       const email = `${dni}@sistema.local`;
       
