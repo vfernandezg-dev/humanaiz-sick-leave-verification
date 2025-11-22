@@ -19,8 +19,8 @@ Deno.serve(async (req) => {
 
     console.log("Enviando webhook a n8n:", payload);
 
-    // Send to n8n webhook - Use environment variable or default to localhost
-    const n8nWebhookUrl = Deno.env.get("N8N_WEBHOOK_URL") || "https://REDACTED-N8N-HOST.example/webhook/descansos";
+    // Send to n8n webhook - Use environment variable or default to n8n webhook
+    const n8nWebhookUrl = Deno.env.get("N8N_WEBHOOK_URL") || "https://REDACTED-N8N-HOST.example/webhook-test/descansos";
 
     const response = await fetch(n8nWebhookUrl, {
       method: "POST",
