@@ -17,6 +17,23 @@ import { Check, X, Filter } from "lucide-react";
 
 type EstadoDescanso = "Pendiente" | "Aprobado" | "Rechazado";
 
+interface AnalisisN8N {
+  extraidos?: {
+    dni_en_documento?: string;
+    nombre_en_documento?: string;
+    citt?: string;
+    fecha_inicio_doc?: string;
+    fecha_fin_doc?: string;
+    dias_documento?: number;
+    contingencia?: string;
+    codigo_medico?: string;
+  };
+  validaciones?: Record<string, boolean>;
+  estado_documento?: string;
+  motivos_rechazo?: string[];
+  comentario_general?: string;
+}
+
 interface DescansoMedico {
   id: string;
   fecha_inicio: string;
@@ -26,6 +43,7 @@ interface DescansoMedico {
   imagen_url: string | null;
   created_at: string;
   sede: string;
+  analisis_n8n?: AnalisisN8N | null;
   colaboradores: {
     dni: string;
     nombres: string;
@@ -95,7 +113,7 @@ export default function RRHHDescansos() {
         );
       }
       
-      setDescansos(filteredData);
+      setDescansos(filteredData as DescansoMedico[]);
     }
   };
 
@@ -251,9 +269,47 @@ export default function RRHHDescansos() {
                   </div>
                 )}
 
+                {descanso.analisis_n8n && descanso.analisis_n8n.estado_documento === "Rechazado" && (
+                  <div className="p-4 border-l-4 border-destructive bg-destructive/10 rounded-lg space-y-2">
+                    <p className="text-sm font-semibold text-destructive">
+                      Análisis Automatizado: Documento Rechazado
+                    </p>
+                    
+                    {descanso.analisis_n8n.motivos_rechazo && descanso.analisis_n8n.motivos_rechazo.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">Motivos de rechazo detectados:</p>
+                        <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+                          {descanso.analisis_n8n.motivos_rechazo.map((motivo, idx) => (
+                            <li key={idx}>{motivo}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {descanso.analisis_n8n.comentario_general && (
+                      <p className="text-sm text-muted-foreground italic mt-2">
+                        {descanso.analisis_n8n.comentario_general}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {descanso.analisis_n8n && descanso.analisis_n8n.estado_documento === "Aprobado" && (
+                  <div className="p-4 border-l-4 border-success bg-success/10 rounded-lg">
+                    <p className="text-sm font-semibold text-success">
+                      Análisis Automatizado: Documento Aprobado
+                    </p>
+                    {descanso.analisis_n8n.comentario_general && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        {descanso.analisis_n8n.comentario_general}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {descanso.comentario_rrhh && (
                   <div className="p-3 bg-muted rounded-lg">
-                    <p className="text-sm font-medium">Comentario:</p>
+                    <p className="text-sm font-medium">Comentario RRHH:</p>
                     <p className="text-sm text-muted-foreground">{descanso.comentario_rrhh}</p>
                   </div>
                 )}
