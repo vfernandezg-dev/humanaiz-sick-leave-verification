@@ -1,0 +1,117 @@
+# Proxy inverso y servidor de estáticos de HumanAIz.
+#
+# SITE_ADDRESS decide el modo:
+#   midominio.com  -> HTTPS automático con Let's Encrypt (puertos 80 y 443 abiertos)
+#   localhost      -> HTTPS con certificado local de Caddy (pruebas)
+#   :80            -> HTTP plano, para ir detrás de otro proxy que termine TLS
+{
+	admin off
+	servers {
+		timeouts {
+			read_header 10s
+			read_body 60s
+			idle 2m
+		}
+	}
+}
+
+{$SITE_ADDRESS:localhost} {
+	encode zstd gzip
+
+	# El log de acceso NO debe contener cabeceras: la clave de IA del usuario
+	# viaja en X-LLM-Api-Key y Caddy solo enmascara por defecto Authorization
+	# y Cookie. Se eliminan todas, y los parámetros con datos personales.
+	log {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request>headers delete
+				request>tls delete
+				resp_headers delete
+				request>uri query {
+					replace dni REDACTADO
+					replace q REDACTADO
+				}
+			}
+		}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		Cross-Origin-Opener-Policy same-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		-Server
+	}
+
+	# Rutas internas: nunca se exponen por el proxy. Va en un `handle` propio
+	# y primero, porque los bloques handle son excluyentes y gana el primero
+	# que coincide.
+	@interno path /api/v1/health/ready /api/docs* /api/openapi.json
+	handle @interno {
+		respond 404
+	}
+
+	# Subida de certificados: único punto con cuerpo grande.
+	@carga {
+		method POST
+		path /api/v1/descansos
+	}
+	handle @carga {
+		request_body {
+			max_size 11MB
+		}
+		reverse_proxy api:8000 {
+			transport http {
+				response_header_timeout 60s
+			}
+		}
+	}
+
+	# Análisis con IA: espera la respuesta del proveedor. La cadena de tiempos
+	# es SDK 90 s < API 100 s < proxy 120 s < navegador 130 s, para que el
+	# usuario reciba siempre el error de la API y no uno genérico del proxy.
+	@analisis {
+		method POST
+		path_regexp ^/api/v1/descansos/[^/]+/analisis$
+	}
+	handle @analisis {
+		request_body {
+			max_size 16KB
+		}
+		reverse_proxy api:8000 {
+			transport http {
+				response_header_timeout 120s
+			}
+		}
+	}
+
+	handle /api/* {
+		request_body {
+			max_size 64KB
+		}
+		reverse_proxy api:8000 {
+			transport http {
+				response_header_timeout 30s
+			}
+		}
+	}
+
+	# SPA. La CSP estricta es la principal defensa de la clave de IA que el
+	# usuario guarda en el navegador: sin scripts de terceros ni conexiones
+	# fuera del propio origen.
+	handle {
+		root * /srv
+		header Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+		# Los assets llevan hash en el nombre; el HTML se revalida siempre.
+		@assets path /assets/*
+		@documento not path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		header @documento Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}

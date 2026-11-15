@@ -1,0 +1,26 @@
+# Solo para desarrollo y tests: un PostgreSQL local en 127.0.0.1:54329
+# (cámbialo con DEV_DB_PORT si ese puerto está ocupado).
+#   docker compose -f docker-compose.dev.yml up -d --wait
+# La API y el frontend se ejecutan en el host (ver README).
+name: humanaiz-dev
+
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: humanaiz
+      POSTGRES_USER: humanaiz
+      POSTGRES_PASSWORD: humanaiz
+    ports:
+      - "127.0.0.1:${DEV_DB_PORT:-54329}:5432"
+    volumes:
+      - pgdata_dev:/var/lib/postgresql
+      - ./deploy/dev-init.sql:/docker-entrypoint-initdb.d/10-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U humanaiz -d humanaiz"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata_dev:
