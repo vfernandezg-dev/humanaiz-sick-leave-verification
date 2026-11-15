@@ -27,6 +27,9 @@ from sqlalchemy.ext.asyncio import (
 from humanaiz.config import Settings
 from humanaiz.main import create_app
 from humanaiz.models import Base, Colaborador, User
+from humanaiz.scanning import catalog
+from humanaiz.scanning.providers import REGISTRY
+from humanaiz.scanning.providers.fake import FakeAdapter
 from humanaiz.security.passwords import hash_password
 
 TEST_DATABASE_URL = os.environ.get(
@@ -177,3 +180,21 @@ async def login(client: httpx.AsyncClient, dni: str, password: str = PASSWORD) -
     body = r.json()
     client.headers["Authorization"] = f"Bearer {body['access_token']}"
     return body
+
+
+@pytest.fixture
+def fake_provider(monkeypatch: pytest.MonkeyPatch) -> FakeAdapter:
+    """Registra un proveedor de IA simulado ("fake") mientras dura el test."""
+    adapter = FakeAdapter()
+    info = catalog.ProviderInfo(
+        id="fake",
+        nombre="Simulado",
+        formato_clave="",
+        modelos=(
+            catalog.ModelInfo("fake-1", "Simulado 1", predeterminado=True),
+            catalog.ModelInfo("fake-2", "Simulado 2"),
+        ),
+    )
+    monkeypatch.setitem(REGISTRY, "fake", adapter)
+    monkeypatch.setitem(catalog._BY_ID, "fake", info)
+    return adapter

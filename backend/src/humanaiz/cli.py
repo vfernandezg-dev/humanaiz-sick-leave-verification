@@ -24,6 +24,7 @@ from humanaiz.db import Database
 from humanaiz.models import CATEGORIAS, ROLES, SEXOS, Colaborador, User, UserSession
 from humanaiz.security.passwords import hash_password, validate_new_password
 from humanaiz.services import demo
+from humanaiz.storage.local import LocalStorage
 
 Handler = Callable[[argparse.Namespace, Settings], Awaitable[int]]
 
@@ -210,18 +211,19 @@ async def _seed_demo(args: argparse.Namespace, settings: Settings) -> int:
                     else "DEMO_MODE=false: no hay nada que sembrar."
                 )
                 return 0
-            resultado = await demo.seed(session, settings)
+            storage = LocalStorage(settings.storage_local_path)
+            resultado = await demo.seed(session, settings, storage)
     finally:
         await db.dispose()
     print(
         f"Demo sembrada: {resultado.usuarios} cuentas de prueba, "
-        f"{resultado.colaboradores} colaboradores de muestra."
+        f"{resultado.colaboradores} colaboradores, "
+        f"{resultado.muestras} descansos de muestra nuevos."
     )
     return 0
 
 
 async def _purge(args: argparse.Namespace, settings: Settings) -> int:
-    from humanaiz.storage.local import LocalStorage
     from humanaiz.tasks import purge_once
 
     db = Database(settings.database_url, pool_size=2)

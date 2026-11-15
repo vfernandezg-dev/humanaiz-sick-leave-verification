@@ -18,12 +18,17 @@ FORBIDDEN_ENV_VARS: tuple[str, ...] = (
     "OPENAI_API_KEY",
     "OPENAI_BASE_URL",
     "OPENAI_LOG",
+    "OPENAI_ORG_ID",
+    "OPENAI_PROJECT_ID",
     "ANTHROPIC_API_KEY",
     "ANTHROPIC_AUTH_TOKEN",
     "ANTHROPIC_BASE_URL",
     "ANTHROPIC_LOG",
     "GEMINI_API_KEY",
     "GOOGLE_API_KEY",
+    "GOOGLE_GENAI_USE_VERTEXAI",
+    "GOOGLE_GEMINI_BASE_URL",
+    "GOOGLE_VERTEX_BASE_URL",
     "HTTP_PROXY",
     "HTTPS_PROXY",
     "ALL_PROXY",
@@ -71,8 +76,8 @@ class Settings(BaseSettings):
         "openai",
         "gemini",
     )
-    llm_request_timeout_seconds: int = Field(default=90, ge=5, le=300)
-    analysis_deadline_seconds: int = Field(default=100, ge=5, le=330)
+    llm_request_timeout_seconds: int = Field(default=90, ge=1, le=300)
+    analysis_deadline_seconds: int = Field(default=100, ge=2, le=330)
     analysis_max_concurrency: int = Field(default=8, ge=1, le=64)
     analysis_max_per_descanso: int = Field(default=10, ge=1, le=100)
 

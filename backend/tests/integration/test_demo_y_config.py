@@ -181,3 +181,45 @@ async def test_cli_importa_colaboradores(
 
     csv_path.write_text(f"{cabecera}\n1234,X,Y,1990-01-15,B,F,,A,B,C,si\n", encoding="utf-8")
     assert await cli._import_colaboradores(_args(archivo=str(csv_path)), make_settings()) == 2
+
+
+async def test_muestras_de_la_demo_con_analisis_en_los_tres_estados(
+    app_factory: AppFactory, make_settings: SettingsFactory, db_session: AsyncSession
+) -> None:
+    settings = make_settings(**DEMO_SETTINGS)
+    from humanaiz.storage.local import LocalStorage
+
+    storage = LocalStorage(settings.storage_local_path)
+    primera = await demo.seed(db_session, settings, storage)
+    assert primera.muestras == 3
+    assert (await demo.seed(db_session, settings, storage)).muestras == 0  # idempotente
+
+    async with app_factory(**DEMO_SETTINGS) as app, make_client(app) as cliente:
+        await login(cliente, "10000002", "demo-rrhh")
+        todos = (await cliente.get("/api/v1/descansos")).json()
+        assert todos["total"] == 3
+        por_estado = {d["ultimo_analisis"]["estado_documento"]: d for d in todos["items"]}
+        assert set(por_estado) == {"Aprobado", "Observado", "Rechazado"}
+        for d in todos["items"]:
+            assert d["es_muestra"] is True
+            assert not any(d["permisos"].values())
+            assert d["ultimo_analisis"]["proveedor"] == "muestra"
+            pagina = await cliente.get(f"/api/v1/descansos/{d['id']}/paginas/1")
+            assert pagina.status_code == 200 and pagina.headers["content-type"] == "image/jpeg"
+        assert por_estado["Aprobado"]["estado"] == "Aprobado"
+        assert por_estado["Aprobado"]["fecha_inicio"] is not None
+        assert por_estado["Rechazado"]["ultimo_analisis"]["motivos_rechazo"] == [
+            "El DNI del documento no coincide con el del colaborador."
+        ]
+        observado = {
+            v["codigo"]: v["resultado"]
+            for v in por_estado["Observado"]["ultimo_analisis"]["validaciones_detalle"]
+        }
+        assert observado["dias_coinciden"] == "falla"
+        assert observado["codigo_medico_presente"] == "falla"
+
+        # El colaborador de prueba ve su propia muestra en "Mis descansos".
+        await cliente.post("/api/v1/auth/logout")
+        await login(cliente, "10000001", "demo-colaborador")
+        mios = (await cliente.get("/api/v1/me/descansos")).json()
+        assert [d["estado"] for d in mios["items"]] == ["Aprobado"]

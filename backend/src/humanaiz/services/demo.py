@@ -11,13 +11,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from humanaiz.config import ConfigError, Settings
 from humanaiz.models import Colaborador, User, UserSession
+from humanaiz.scanning.preprocess import Limits
 from humanaiz.security.passwords import hash_password
+from humanaiz.services import demo_muestras
+from humanaiz.storage.base import Storage
 
 # Personas ficticias para poblar el padrón de la demo.
 _PADRON_MUESTRA: tuple[dict[str, object], ...] = (
@@ -112,6 +116,7 @@ _DEMO_RRHH = {
 class ResultadoSiembra:
     usuarios: int
     colaboradores: int
+    muestras: int = 0
 
 
 async def assert_mode_consistency(session: AsyncSession, settings: Settings) -> None:
@@ -171,8 +176,13 @@ async def _upsert_demo_user(
     return user
 
 
-async def seed(session: AsyncSession, settings: Settings) -> ResultadoSiembra:
-    """Crea o actualiza las cuentas de prueba y el padrón de muestra. Idempotente."""
+async def seed(
+    session: AsyncSession, settings: Settings, storage: Storage | None = None
+) -> ResultadoSiembra:
+    """Crea o actualiza las cuentas de prueba y el padrón de muestra. Idempotente.
+
+    Con `storage` siembra además los descansos de muestra con su análisis.
+    """
     if not settings.demo_mode:
         raise ConfigError("DEMO_MODE no está activo.")
     await assert_mode_consistency(session, settings)
@@ -194,22 +204,39 @@ async def seed(session: AsyncSession, settings: Settings) -> ResultadoSiembra:
         datos=_DEMO_RRHH,
     )
     await session.flush()
-    await _upsert_colaborador(
-        session, settings.demo_colaborador_dni, _DEMO_COLABORADOR, colaborador_user
-    )
-    await _upsert_colaborador(session, settings.demo_rrhh_dni, _DEMO_RRHH, rrhh_user)
-
-    reservados = {settings.demo_colaborador_dni, settings.demo_rrhh_dni}
-    total = 2
+    padron: dict[str, Colaborador] = {
+        settings.demo_colaborador_dni: await _upsert_colaborador(
+            session, settings.demo_colaborador_dni, _DEMO_COLABORADOR, colaborador_user
+        ),
+        settings.demo_rrhh_dni: await _upsert_colaborador(
+            session, settings.demo_rrhh_dni, _DEMO_RRHH, rrhh_user
+        ),
+    }
     for persona in _PADRON_MUESTRA:
         dni = str(persona["dni"])
-        if dni in reservados:
-            continue
-        await _upsert_colaborador(session, dni, persona, None)
-        total += 1
+        if dni not in padron:
+            padron[dni] = await _upsert_colaborador(session, dni, persona, None)
+    await session.flush()
+
+    muestras = 0
+    if storage is not None:
+        muestras = await demo_muestras.sembrar(
+            session,
+            storage,
+            hoy=datetime.now(ZoneInfo(settings.tz_negocio)).date(),
+            limits=Limits(
+                max_pixels=settings.max_image_pixels,
+                max_pdf_pages=settings.max_pdf_pages,
+                page_max_side_px=settings.page_max_side_px,
+                timeout_seconds=settings.normalize_timeout_seconds,
+            ),
+            colaboradores=padron,
+            colaborador_user=colaborador_user,
+            rrhh_user=rrhh_user,
+        )
 
     await session.commit()
-    return ResultadoSiembra(usuarios=2, colaboradores=total)
+    return ResultadoSiembra(usuarios=2, colaboradores=len(padron), muestras=muestras)
 
 
 async def disable(session: AsyncSession) -> int:

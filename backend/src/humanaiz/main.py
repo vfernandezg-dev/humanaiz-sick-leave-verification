@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, Depends, FastAPI
 
 from humanaiz import __version__
-from humanaiz.api import auth, colaboradores, descansos, health, public_config
+from humanaiz.api import analisis, auth, colaboradores, descansos, health, public_config
 from humanaiz.config import Settings, enforce_boot_guard, get_settings
 from humanaiz.db import Database
 from humanaiz.errors import install_error_handlers
@@ -60,6 +60,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.storage = storage
         # Acota cuántos documentos se decodifican a la vez (memoria y CPU).
         app.state.normalize_slots = asyncio.Semaphore(settings.normalize_max_concurrency)
+        # Tope global de llamadas simultáneas a proveedores de IA.
+        app.state.analysis_slots = asyncio.Semaphore(settings.analysis_max_concurrency)
+        app.state.analisis_en_vuelo = set()
         purga: asyncio.Task[None] | None = None
         try:
             # Impide arrancar con cuentas de prueba públicas junto a datos reales.
@@ -73,6 +76,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 purga.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await purga
+            # Los análisis en curso ya están pagados por sus usuarios: se les
+            # da tiempo a terminar y guardar antes de cerrar la base de datos.
+            pendientes = set(app.state.analisis_en_vuelo)
+            if pendientes:
+                await asyncio.wait(pendientes, timeout=settings.analysis_deadline_seconds + 10)
             await db.dispose()
 
     app = FastAPI(
@@ -96,5 +104,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     api.include_router(auth.router)
     api.include_router(colaboradores.router)
     api.include_router(descansos.router)
+    api.include_router(analisis.router)
     app.include_router(api)
     return app
