@@ -7,7 +7,8 @@ import { defineConfig } from "vitest/config";
 // hace falta CORS.
 export default defineConfig({
   server: {
-    port: 8080,
+    // Puerto fijo: el backend valida que el Origin sea exactamente PUBLIC_ORIGIN.
+    port: 5173,
     strictPort: true,
     proxy: {
       "/api": {

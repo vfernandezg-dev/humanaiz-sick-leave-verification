@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore", case_sensitive=False)
 
     environment: Literal["development", "test", "production"] = "development"
-    public_origin: str = "http://localhost:8080"
+    public_origin: str = "http://localhost:5173"
     log_level: str = "INFO"
     tz_negocio: str = "America/Lima"
     enable_docs: bool = False

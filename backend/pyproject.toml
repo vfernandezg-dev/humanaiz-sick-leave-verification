@@ -52,6 +52,8 @@ ignore = [
 # En tests: secretos de mentira, E/S bloqueante sobre archivos temporales y SQL
 # construido con nombres de tabla del propio modelo.
 "tests/**" = ["S105", "S106", "S311", "S608", "E501", "ASYNC230", "ASYNC240", "RUF059"]
+# Las pruebas e2e manejan el stack local con `docker compose`.
+"tests/e2e/**" = ["S105", "S106", "S311", "S603", "S607", "S608", "E501"]
 "migrations/**" = ["E501"]
 # El CLI es un proceso de un solo uso: la E/S bloqueante no afecta a nadie.
 "src/humanaiz/cli.py" = ["ASYNC230", "ASYNC240"]

@@ -396,9 +396,10 @@ async def test_plazo_maximo_del_analisis(
         await login(cliente, "45678912")
         d = (await subir(cliente)).json()
         r = await asyncio.wait_for(analizar(cliente, d["id"]), timeout=10)
-        assert (r.status_code, r.json()["error"]["code"]) == (504, "llm_timeout")
+        assert (r.status_code, r.json()["error"]["code"]) == (504, "llm_timeout"), r.text
         fila = await db_session.scalar(select(AnalisisDescanso))
-        assert fila is not None and fila.estado == "fallido"
+        assert fila is not None
+        assert (fila.estado, fila.error_code) == ("fallido", "llm_timeout")
 
 
 async def test_limites_de_uso_del_analisis(

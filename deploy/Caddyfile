@@ -12,6 +12,10 @@
 			read_body 60s
 			idle 2m
 		}
+		# Solo si hay OTRO proxy delante (SITE_ADDRESS=:80): indica su IP o red
+		# para que la IP real del cliente llegue a los límites de uso. Por
+		# defecto no se confía en ningún X-Forwarded-For entrante.
+		trusted_proxies static {$TRUSTED_PROXIES:127.0.0.1/32}
 	}
 }
 
