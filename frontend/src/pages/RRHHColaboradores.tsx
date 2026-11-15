@@ -1,262 +1,205 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { Filter, Search } from "lucide-react";
 import { Layout } from "@/components/Layout";
-import { useAuth } from "@/hooks/useAuth";
-import { useWebhook } from "@/hooks/useWebhook";
-import { supabase } from "@/integrations/supabase/client";
+import { Paginacion } from "@/components/Paginacion";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast";
-import { Filter, Search } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useColaboradores, useFacetas } from "@/hooks/queries";
+import { useDebounce } from "@/hooks/useDebounce";
+import { formatoFecha } from "@/lib/fechas";
 
-interface Colaborador {
-  id: string;
-  dni: string;
-  apellidos: string;
-  nombres: string;
-  fecha_nacimiento: string;
+const POR_PAGINA = 50;
+const TODOS = "todos";
+
+const COLOR_CATEGORIA: Record<string, string> = {
+  A: "bg-success hover:bg-success",
+  B: "bg-primary hover:bg-primary",
+  C: "bg-warning hover:bg-warning",
+  D: "bg-destructive hover:bg-destructive",
+};
+
+interface Filtros {
+  busqueda: string;
   categoria: string;
+  area: string;
+  contrato: string;
   sexo: string;
-  celular: string | null;
-  area_operacion: string;
-  tipo_contrato: string;
-  sede: string;
-  activo: boolean;
+  activo: string;
 }
 
+const SIN_FILTROS: Filtros = {
+  busqueda: "",
+  categoria: TODOS,
+  area: TODOS,
+  contrato: TODOS,
+  sexo: TODOS,
+  activo: TODOS,
+};
+
+function opcional(valor: string): string | undefined {
+  return valor === TODOS ? undefined : valor;
+}
+
+interface SelectorProps {
+  id: string;
+  etiqueta: string;
+  valor: string;
+  onCambio: (valor: string) => void;
+  opciones: { valor: string; texto: string }[];
+  todos: string;
+}
+
+function Selector({ id, etiqueta, valor, onCambio, opciones, todos }: SelectorProps) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{etiqueta}</Label>
+      <Select value={valor} onValueChange={onCambio}>
+        <SelectTrigger id={id}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={TODOS}>{todos}</SelectItem>
+          {opciones.map((opcion) => (
+            <SelectItem key={opcion.valor} value={opcion.valor}>
+              {opcion.texto}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+const comoOpciones = (valores: string[] | undefined) =>
+  (valores ?? []).map((valor) => ({ valor, texto: valor }));
+
 export default function RRHHColaboradores() {
-  const { user, role, loading } = useAuth();
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const { sendWebhook } = useWebhook();
-  const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
-  const [filteredColaboradores, setFilteredColaboradores] = useState<Colaborador[]>([]);
-  
-  const [filters, setFilters] = useState({
-    busqueda: "",
-    categoria: "all",
-    area: "all",
-    contrato: "all",
-    sexo: "all",
-    activo: "all",
+  const [filtros, setFiltros] = useState<Filtros>(SIN_FILTROS);
+  const [offset, setOffset] = useState(0);
+  const busqueda = useDebounce(filtros.busqueda.trim());
+  const { data: facetas } = useFacetas();
+
+  const { data, isLoading, isError, isFetching } = useColaboradores({
+    q: busqueda || undefined,
+    categoria: opcional(filtros.categoria),
+    area_operacion: opcional(filtros.area),
+    tipo_contrato: opcional(filtros.contrato),
+    sexo: opcional(filtros.sexo),
+    activo: filtros.activo === TODOS ? undefined : filtros.activo === "si",
+    limit: POR_PAGINA,
+    offset,
   });
 
-  useEffect(() => {
-    if (!loading && (!user || role !== "analista_rrhh")) {
-      navigate("/");
-    } else if (user && role === "analista_rrhh") {
-      fetchColaboradores();
-    }
-  }, [user, role, loading, navigate]);
-
-  const fetchColaboradores = async () => {
-    const { data, error } = await supabase
-      .from("colaboradores")
-      .select("*")
-      .order("apellidos", { ascending: true });
-
-    if (error) {
-      toast({
-        title: "Error",
-        description: "No se pudieron cargar los colaboradores",
-        variant: "destructive",
-      });
-    } else {
-      setColaboradores(data || []);
-      setFilteredColaboradores(data || []);
-    }
+  const cambiar = (campo: keyof Filtros) => (valor: string) => {
+    setFiltros((actuales) => ({ ...actuales, [campo]: valor }));
+    setOffset(0);
   };
 
-  useEffect(() => {
-    let filtered = [...colaboradores];
-
-    // Filter by search
-    if (filters.busqueda) {
-      const searchLower = filters.busqueda.toLowerCase();
-      filtered = filtered.filter(
-        (c) =>
-          c.dni.includes(filters.busqueda) ||
-          c.nombres.toLowerCase().includes(searchLower) ||
-          c.apellidos.toLowerCase().includes(searchLower)
-      );
-    }
-
-    // Filter by category
-    if (filters.categoria !== "all") {
-      filtered = filtered.filter((c) => c.categoria === filters.categoria);
-    }
-
-    // Filter by area
-    if (filters.area !== "all") {
-      filtered = filtered.filter((c) => c.area_operacion === filters.area);
-    }
-
-    // Filter by contract type
-    if (filters.contrato !== "all") {
-      filtered = filtered.filter((c) => c.tipo_contrato === filters.contrato);
-    }
-
-    // Filter by sex
-    if (filters.sexo !== "all") {
-      filtered = filtered.filter((c) => c.sexo === filters.sexo);
-    }
-
-    // Filter by active status
-    if (filters.activo !== "all") {
-      filtered = filtered.filter((c) => c.activo === (filters.activo === "true"));
-    }
-
-    setFilteredColaboradores(filtered);
-  }, [filters, colaboradores]);
-
-  const uniqueAreas = Array.from(new Set(colaboradores.map((c) => c.area_operacion)));
-  const uniqueContratos = Array.from(new Set(colaboradores.map((c) => c.tipo_contrato)));
-
-  const getCategoriaColor = (categoria: string) => {
-    switch (categoria) {
-      case "A":
-        return "bg-success";
-      case "B":
-        return "bg-primary";
-      case "C":
-        return "bg-warning";
-      case "D":
-        return "bg-destructive";
-      default:
-        return "bg-muted";
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-muted-foreground">Cargando...</p>
-      </div>
-    );
-  }
+  const colaboradores = data?.items ?? [];
 
   return (
     <Layout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Panel Maestro de Colaboradores</h1>
-          <p className="text-muted-foreground mt-1">
-            Consulta y filtra información de colaboradores
-          </p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold">Padrón de colaboradores</h1>
+        <p className="mt-1 text-muted-foreground">Consulta y filtra la información del personal.</p>
+      </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Filter className="h-5 w-5" aria-hidden />
+            Filtros y búsqueda
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="space-y-2">
+            <Label htmlFor="busqueda" className="flex items-center gap-2">
+              <Search className="h-4 w-4" aria-hidden />
+              Buscar
+            </Label>
+            <Input
+              id="busqueda"
+              maxLength={100}
+              placeholder="DNI, nombres o apellidos"
+              value={filtros.busqueda}
+              onChange={(e) => cambiar("busqueda")(e.target.value)}
+            />
+          </div>
+          <Selector
+            id="categoria"
+            etiqueta="Categoría"
+            todos="Todas"
+            valor={filtros.categoria}
+            onCambio={cambiar("categoria")}
+            opciones={comoOpciones(["A", "B", "C", "D"])}
+          />
+          <Selector
+            id="area"
+            etiqueta="Área de operación"
+            todos="Todas"
+            valor={filtros.area}
+            onCambio={cambiar("area")}
+            opciones={comoOpciones(facetas?.areas_operacion)}
+          />
+          <Selector
+            id="contrato"
+            etiqueta="Tipo de contrato"
+            todos="Todos"
+            valor={filtros.contrato}
+            onCambio={cambiar("contrato")}
+            opciones={comoOpciones(facetas?.tipos_contrato)}
+          />
+          <Selector
+            id="sexo"
+            etiqueta="Sexo"
+            todos="Todos"
+            valor={filtros.sexo}
+            onCambio={cambiar("sexo")}
+            opciones={[
+              { valor: "M", texto: "Masculino" },
+              { valor: "F", texto: "Femenino" },
+            ]}
+          />
+          <Selector
+            id="activo"
+            etiqueta="Estado"
+            todos="Todos"
+            valor={filtros.activo}
+            onCambio={cambiar("activo")}
+            opciones={[
+              { valor: "si", texto: "Activos" },
+              { valor: "no", texto: "Inactivos" },
+            ]}
+          />
+        </CardContent>
+      </Card>
+
+      {isError ? (
+        <Alert variant="destructive">
+          <AlertDescription>No se pudo cargar el padrón. Recarga la página.</AlertDescription>
+        </Alert>
+      ) : (
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filtros y Búsqueda
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <Search className="h-4 w-4" />
-                  Buscar
-                </Label>
-                <Input
-                  placeholder="DNI, nombres o apellidos"
-                  value={filters.busqueda}
-                  onChange={(e) => setFilters({ ...filters, busqueda: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Categoría</Label>
-                <Select value={filters.categoria} onValueChange={(v) => setFilters({ ...filters, categoria: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas</SelectItem>
-                    <SelectItem value="A">A</SelectItem>
-                    <SelectItem value="B">B</SelectItem>
-                    <SelectItem value="C">C</SelectItem>
-                    <SelectItem value="D">D</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Área de Operación</Label>
-                <Select value={filters.area} onValueChange={(v) => setFilters({ ...filters, area: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas</SelectItem>
-                    {uniqueAreas.map((area) => (
-                      <SelectItem key={area} value={area}>
-                        {area}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Tipo de Contrato</Label>
-                <Select value={filters.contrato} onValueChange={(v) => setFilters({ ...filters, contrato: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    {uniqueContratos.map((contrato) => (
-                      <SelectItem key={contrato} value={contrato}>
-                        {contrato}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Sexo</Label>
-                <Select value={filters.sexo} onValueChange={(v) => setFilters({ ...filters, sexo: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="M">Masculino</SelectItem>
-                    <SelectItem value="F">Femenino</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Estado</Label>
-                <Select value={filters.activo} onValueChange={(v) => setFilters({ ...filters, activo: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="true">Activos</SelectItem>
-                    <SelectItem value="false">Inactivos</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="text-sm text-muted-foreground">
-              Mostrando {filteredColaboradores.length} de {colaboradores.length} colaboradores
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-0">
+          <CardContent className={isFetching && !isLoading ? "p-0 opacity-70" : "p-0"}>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -264,7 +207,7 @@ export default function RRHHColaboradores() {
                     <TableHead>DNI</TableHead>
                     <TableHead>Apellidos</TableHead>
                     <TableHead>Nombres</TableHead>
-                    <TableHead>F. Nacimiento</TableHead>
+                    <TableHead>F. nacimiento</TableHead>
                     <TableHead>Categoría</TableHead>
                     <TableHead>Sexo</TableHead>
                     <TableHead>Celular</TableHead>
@@ -275,35 +218,59 @@ export default function RRHHColaboradores() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredColaboradores.map((colaborador) => (
-                    <TableRow key={colaborador.id}>
-                      <TableCell className="font-medium">{colaborador.dni}</TableCell>
-                      <TableCell>{colaborador.apellidos}</TableCell>
-                      <TableCell>{colaborador.nombres}</TableCell>
-                      <TableCell>{new Date(colaborador.fecha_nacimiento).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <Badge className={getCategoriaColor(colaborador.categoria)}>
-                          {colaborador.categoria}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{colaborador.sexo === "M" ? "Masculino" : "Femenino"}</TableCell>
-                      <TableCell>{colaborador.celular || "-"}</TableCell>
-                      <TableCell>{colaborador.area_operacion}</TableCell>
-                      <TableCell>{colaborador.tipo_contrato}</TableCell>
-                      <TableCell>{colaborador.sede}</TableCell>
-                      <TableCell>
-                        <Badge variant={colaborador.activo ? "default" : "secondary"}>
-                          {colaborador.activo ? "Activo" : "Inactivo"}
-                        </Badge>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={11}>
+                        <Skeleton className="h-24 w-full" />
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : colaboradores.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={11} className="py-10 text-center text-muted-foreground">
+                        Ningún colaborador coincide con los filtros.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    colaboradores.map((c) => (
+                      <TableRow key={c.id}>
+                        <TableCell className="font-medium">{c.dni}</TableCell>
+                        <TableCell>{c.apellidos}</TableCell>
+                        <TableCell>{c.nombres}</TableCell>
+                        <TableCell>{formatoFecha(c.fecha_nacimiento)}</TableCell>
+                        <TableCell>
+                          <Badge className={COLOR_CATEGORIA[c.categoria] ?? "bg-muted"}>
+                            {c.categoria}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{c.sexo === "M" ? "Masculino" : "Femenino"}</TableCell>
+                        <TableCell>{c.celular ?? "—"}</TableCell>
+                        <TableCell>{c.area_operacion}</TableCell>
+                        <TableCell>{c.tipo_contrato}</TableCell>
+                        <TableCell>{c.sede}</TableCell>
+                        <TableCell>
+                          <Badge variant={c.activo ? "default" : "secondary"}>
+                            {c.activo ? "Activo" : "Inactivo"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </div>
           </CardContent>
         </Card>
-      </div>
+      )}
+
+      {data && (
+        <Paginacion
+          total={data.total}
+          limit={data.limit}
+          offset={data.offset}
+          onCambio={setOffset}
+          etiqueta="colaboradores"
+        />
+      )}
     </Layout>
   );
 }

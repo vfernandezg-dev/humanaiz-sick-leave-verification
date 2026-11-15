@@ -1,104 +1,100 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import type { ComponentType } from "react";
+import { Link } from "react-router-dom";
+import { ClipboardCheck, FileText, KeyRound, Users } from "lucide-react";
+import { useAuth } from "@/auth/context";
 import { Layout } from "@/components/Layout";
-import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Users, ClipboardCheck } from "lucide-react";
+import { useLlm } from "@/llm/context";
+
+interface Acceso {
+  to: string;
+  titulo: string;
+  descripcion: string;
+  Icono: ComponentType<{ className?: string }>;
+}
+
+const DE_TODOS: Acceso[] = [
+  {
+    to: "/descansos",
+    titulo: "Mis descansos",
+    descripcion: "Registra un certificado médico y consulta el estado de tus descansos.",
+    Icono: FileText,
+  },
+];
+
+const DE_RRHH: Acceso[] = [
+  {
+    to: "/rrhh/descansos",
+    titulo: "Gestión de descansos",
+    descripcion: "Revisa, analiza y aprueba o rechaza las solicitudes.",
+    Icono: ClipboardCheck,
+  },
+  {
+    to: "/rrhh/colaboradores",
+    titulo: "Colaboradores",
+    descripcion: "Consulta el padrón de colaboradores.",
+    Icono: Users,
+  },
+];
 
 export default function Index() {
-  const { user, role, loading } = useAuth();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate("/auth");
-    }
-  }, [user, loading, navigate]);
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-muted-foreground">Cargando...</p>
-      </div>
-    );
-  }
+  const { usuario, esRRHH } = useAuth();
+  const { credencial, abrir } = useLlm();
+  const accesos = esRRHH ? [...DE_TODOS, ...DE_RRHH] : DE_TODOS;
 
   return (
     <Layout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">
-            Bienvenido al Sistema de RRHH
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            {role === "analista_rrhh" 
-              ? "Panel de administración de Recursos Humanos"
-              : "Gestiona tus descansos médicos"}
-          </p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold">Hola, {usuario?.nombres}</h1>
+        <p className="mt-2 text-muted-foreground">
+          {esRRHH
+            ? "Panel de Recursos Humanos para la verificación de descansos médicos."
+            : "Registra tus certificados de descanso médico y sigue su revisión."}
+        </p>
+      </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          <Card 
-            className="cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => navigate("/descansos")}
-          >
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {accesos.map(({ to, titulo, descripcion, Icono }) => (
+          <Link key={to} to={to} className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <Card className="h-full transition-shadow hover:shadow-lg">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-lg bg-primary/10 p-2">
+                    <Icono className="h-6 w-6 text-primary" />
+                  </div>
+                  <CardTitle>{titulo}</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <CardDescription>{descripcion}</CardDescription>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+
+        <button
+          type="button"
+          onClick={abrir}
+          className="rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Card className="h-full transition-shadow hover:shadow-lg">
             <CardHeader>
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <FileText className="h-6 w-6 text-primary" />
+                <div className="rounded-lg bg-primary/10 p-2">
+                  <KeyRound className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle>Mis Descansos</CardTitle>
+                <CardTitle>Clave de IA</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
               <CardDescription>
-                Registra y consulta tus descansos médicos
+                {credencial
+                  ? "Tu clave está lista en este navegador. Puedes cambiarla u olvidarla."
+                  : "Configura tu propia clave para analizar documentos. No se guarda en el servidor."}
               </CardDescription>
             </CardContent>
           </Card>
-
-          {role === "analista_rrhh" && (
-            <>
-              <Card 
-                className="cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() => navigate("/rrhh/descansos")}
-              >
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <ClipboardCheck className="h-6 w-6 text-primary" />
-                    </div>
-                    <CardTitle>Gestión Descansos</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <CardDescription>
-                    Aprueba o rechaza solicitudes de descanso médico
-                  </CardDescription>
-                </CardContent>
-              </Card>
-
-              <Card 
-                className="cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() => navigate("/rrhh/colaboradores")}
-              >
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <Users className="h-6 w-6 text-primary" />
-                    </div>
-                    <CardTitle>Colaboradores</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <CardDescription>
-                    Consulta el maestro de colaboradores
-                  </CardDescription>
-                </CardContent>
-              </Card>
-            </>
-          )}
-        </div>
+        </button>
       </div>
     </Layout>
   );

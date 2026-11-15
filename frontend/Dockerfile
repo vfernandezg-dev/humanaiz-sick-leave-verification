@@ -5,7 +5,7 @@
 FROM node:24-slim AS build
 RUN npm install --global pnpm@11.1.2
 WORKDIR /app
-COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
 COPY frontend/ ./

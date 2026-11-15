@@ -71,6 +71,12 @@ jobs:
         run: pnpm lint
       - name: Tipos
         run: pnpm typecheck
+      - name: Tests
+        run: pnpm test
+      - name: Los tipos de la API están al día
+        run: |
+          pnpm gen:api
+          git diff --exit-code -- src/lib/api-types.ts
       - name: Build
         run: pnpm build
 
