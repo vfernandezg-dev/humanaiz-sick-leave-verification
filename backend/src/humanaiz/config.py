@@ -82,6 +82,9 @@ class Settings(BaseSettings):
     rate_limit_analysis: str = "30/hour"
     rate_limit_general: str = "240/minute"
 
+    # 0 desactiva la purga periódica dentro de la API (se puede lanzar con `humanaiz purge`).
+    purge_interval_seconds: int = Field(default=900, ge=0)
+
     demo_mode: bool = False
     demo_ttl_hours: int = Field(default=24, ge=1, le=720)
     demo_session_ttl_seconds: int = Field(default=7200, ge=300)

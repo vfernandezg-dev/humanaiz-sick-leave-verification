@@ -220,6 +220,22 @@ async def _seed_demo(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
+async def _purge(args: argparse.Namespace, settings: Settings) -> int:
+    from humanaiz.storage.local import LocalStorage
+    from humanaiz.tasks import purge_once
+
+    db = Database(settings.database_url, pool_size=2)
+    try:
+        r = await purge_once(db, LocalStorage(settings.storage_local_path), settings)
+    finally:
+        await db.dispose()
+    print(
+        f"Purga: {r.descansos_demo} descansos de demo, {r.sesiones} sesiones, "
+        f"{r.analisis_abandonados} análisis abandonados, {r.archivos_huerfanos} archivos huérfanos."
+    )
+    return 0
+
+
 async def _export_openapi(args: argparse.Namespace, settings: Settings) -> int:
     from humanaiz.main import create_app
 
@@ -263,6 +279,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Con DEMO_MODE=false no falla: desactiva las cuentas de prueba que existan",
     )
     seed.set_defaults(handler=_seed_demo)
+
+    purga = sub.add_parser("purge", help="Ejecuta una vez la purga de mantenimiento")
+    purga.set_defaults(handler=_purge)
 
     openapi = sub.add_parser("export-openapi", help="Escribe el esquema OpenAPI de la API")
     openapi.add_argument("--output", "-o", default="-", help="Archivo de salida ('-' = stdout)")

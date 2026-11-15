@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 import re
 from collections.abc import AsyncIterator
@@ -10,7 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, Depends, FastAPI
 
 from humanaiz import __version__
-from humanaiz.api import auth, health, public_config
+from humanaiz.api import auth, colaboradores, descansos, health, public_config
 from humanaiz.config import Settings, enforce_boot_guard, get_settings
 from humanaiz.db import Database
 from humanaiz.errors import install_error_handlers
@@ -18,6 +20,8 @@ from humanaiz.logging import configure_logging
 from humanaiz.middleware import BodyLimit, RequestContextMiddleware
 from humanaiz.security.ratelimit import RateLimiter, general_rate_limit
 from humanaiz.services import demo
+from humanaiz.storage.local import LocalStorage
+from humanaiz.tasks import purge_loop
 
 logger = logging.getLogger(__name__)
 
@@ -51,13 +55,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         db = Database(settings.database_url, pool_size=settings.db_pool_size)
+        storage = LocalStorage(settings.storage_local_path)
         app.state.db = db
+        app.state.storage = storage
+        # Acota cuántos documentos se decodifican a la vez (memoria y CPU).
+        app.state.normalize_slots = asyncio.Semaphore(settings.normalize_max_concurrency)
+        purga: asyncio.Task[None] | None = None
         try:
             # Impide arrancar con cuentas de prueba públicas junto a datos reales.
             async with db.session() as session:
                 await demo.assert_mode_consistency(session, settings)
+            if settings.purge_interval_seconds > 0:
+                purga = asyncio.create_task(purge_loop(db, storage, settings), name="purga")
             yield
         finally:
+            if purga is not None:
+                purga.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await purga
             await db.dispose()
 
     app = FastAPI(
@@ -79,5 +94,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     api = APIRouter(prefix=API_PREFIX, dependencies=[Depends(general_rate_limit)])
     api.include_router(public_config.router)
     api.include_router(auth.router)
+    api.include_router(colaboradores.router)
+    api.include_router(descansos.router)
     app.include_router(api)
     return app
