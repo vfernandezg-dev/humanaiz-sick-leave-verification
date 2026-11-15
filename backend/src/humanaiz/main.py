@@ -7,15 +7,17 @@ import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, FastAPI, Request
+from fastapi import APIRouter, Depends, FastAPI
 
 from humanaiz import __version__
-from humanaiz.api import health
+from humanaiz.api import auth, health, public_config
 from humanaiz.config import Settings, enforce_boot_guard, get_settings
 from humanaiz.db import Database
 from humanaiz.errors import install_error_handlers
 from humanaiz.logging import configure_logging
 from humanaiz.middleware import BodyLimit, RequestContextMiddleware
+from humanaiz.security.ratelimit import RateLimiter, general_rate_limit
+from humanaiz.services import demo
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +38,6 @@ def make_body_limit(settings: Settings) -> BodyLimit:
     return limit
 
 
-def get_app_settings(request: Request) -> Settings:
-    return request.app.state.settings
-
-
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
@@ -52,11 +50,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        app.state.db = Database(settings.database_url, pool_size=settings.db_pool_size)
+        db = Database(settings.database_url, pool_size=settings.db_pool_size)
+        app.state.db = db
         try:
+            # Impide arrancar con cuentas de prueba públicas junto a datos reales.
+            async with db.session() as session:
+                await demo.assert_mode_consistency(session, settings)
             yield
         finally:
-            await app.state.db.dispose()
+            await db.dispose()
 
     app = FastAPI(
         title="HumanAIz API",
@@ -67,10 +69,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url="/api/openapi.json" if settings.enable_docs else None,
     )
     app.state.settings = settings
+    app.state.limiter = RateLimiter(settings.rate_limit_storage_uri)
     app.add_middleware(RequestContextMiddleware, body_limit=make_body_limit(settings))
     install_error_handlers(app)
 
-    api = APIRouter(prefix=API_PREFIX)
-    api.include_router(health.router)
+    # Las sondas quedan fuera del límite general: las usa el orquestador.
+    app.include_router(health.router, prefix=API_PREFIX)
+
+    api = APIRouter(prefix=API_PREFIX, dependencies=[Depends(general_rate_limit)])
+    api.include_router(public_config.router)
+    api.include_router(auth.router)
     app.include_router(api)
     return app

@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import os
 from collections.abc import AsyncIterator, Callable
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -24,15 +26,29 @@ from sqlalchemy.ext.asyncio import (
 
 from humanaiz.config import Settings
 from humanaiz.main import create_app
-from humanaiz.models import Base
+from humanaiz.models import Base, Colaborador, User
+from humanaiz.security.passwords import hash_password
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
     "postgresql+asyncpg://humanaiz:humanaiz@127.0.0.1:54329/humanaiz_test",
 )
 ORIGIN = "https://humanaiz.test"
+PASSWORD = "contraseña-de-prueba"
 
 SettingsFactory = Callable[..., Settings]
+AppFactory = Callable[..., AbstractAsyncContextManager[FastAPI]]
+
+DEMO_SETTINGS: dict[str, Any] = {
+    "demo_mode": True,
+    "demo_colaborador_dni": "10000001",
+    "demo_colaborador_password": "demo-colaborador",
+    "demo_rrhh_dni": "10000002",
+    "demo_rrhh_password": "demo-rrhh",
+}
+
+# Un solo hash para toda la suite: Argon2 es lento a propósito.
+_PASSWORD_HASH = hash_password(PASSWORD)
 
 
 @pytest.fixture
@@ -82,9 +98,19 @@ async def db_session(engine: AsyncEngine, clean_db: None) -> AsyncIterator[Async
 
 
 @pytest.fixture
-async def app(make_settings: SettingsFactory, clean_db: None) -> AsyncIterator[FastAPI]:
-    app = create_app(make_settings())
-    async with app.router.lifespan_context(app):
+def app_factory(make_settings: SettingsFactory, clean_db: None) -> AppFactory:
+    @asynccontextmanager
+    async def factory(**overrides: Any) -> AsyncIterator[FastAPI]:
+        app = create_app(make_settings(**overrides))
+        async with app.router.lifespan_context(app):
+            yield app
+
+    return factory
+
+
+@pytest.fixture
+async def app(app_factory: AppFactory) -> AsyncIterator[FastAPI]:
+    async with app_factory() as app:
         yield app
 
 
@@ -101,3 +127,52 @@ def make_client(app: FastAPI, *, ip: str = "203.0.113.10") -> httpx.AsyncClient:
 async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
     async with make_client(app) as client:
         yield client
+
+
+async def create_user(
+    session: AsyncSession,
+    dni: str,
+    *,
+    role: str = "colaborador",
+    is_demo: bool = False,
+    is_active: bool = True,
+    con_colaborador: bool = True,
+    nombres: str = "Ana María",
+    apellidos: str = "Pérez Gómez",
+) -> User:
+    user = User(
+        dni=dni,
+        nombres=nombres,
+        apellidos=apellidos,
+        role=role,
+        is_demo=is_demo,
+        is_active=is_active,
+        password_hash=_PASSWORD_HASH,
+    )
+    session.add(user)
+    if con_colaborador:
+        session.add(
+            Colaborador(
+                dni=dni,
+                user=user,
+                nombres=nombres,
+                apellidos=apellidos,
+                fecha_nacimiento=date(1990, 1, 15),
+                categoria="B",
+                sexo="F",
+                area_operacion="Operaciones",
+                tipo_contrato="Indeterminado",
+                sede="Lima Centro",
+            )
+        )
+    await session.commit()
+    return user
+
+
+async def login(client: httpx.AsyncClient, dni: str, password: str = PASSWORD) -> dict[str, Any]:
+    """Inicia sesión y deja el token de acceso como cabecera por defecto del cliente."""
+    r = await client.post("/api/v1/auth/login", json={"dni": dni, "password": password})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    client.headers["Authorization"] = f"Bearer {body['access_token']}"
+    return body
