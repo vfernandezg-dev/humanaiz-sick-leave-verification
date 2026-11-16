@@ -62,6 +62,7 @@ async def public_config(settings: SettingsDep) -> ConfigPublica:
     return ConfigPublica(
         proyecto=ProyectoConfig(
             concurso=settings.concurso_nombre.strip() or None,
+            puesto=settings.concurso_puesto,
             contacto=settings.contacto_proyecto.strip() or None,
             version_terminos=TERMINOS_VERSION,
             retencion_registros_dias=settings.audit_retention_days,

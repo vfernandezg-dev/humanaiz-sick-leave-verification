@@ -68,3 +68,30 @@ describe("formato según el idioma", () => {
     expect(formatoFecha("2026-11-10")).toBe("10/11/2026");
   });
 });
+
+describe("puesto en el concurso", () => {
+  it("usa los ordinales de cada idioma", () => {
+    const es = textosDe("es");
+    const en = textosDe("en");
+    expect([1, 2, 3, 4].map(es.comun.puesto)).toEqual(["1.er puesto", "2.º puesto", "3.er puesto", "4.º puesto"]);
+    expect([1, 2, 3, 4, 11, 21].map(en.comun.puesto)).toEqual([
+      "1st place",
+      "2nd place",
+      "3rd place",
+      "4th place",
+      "11th place",
+      "21st place",
+    ]);
+  });
+
+  it("destaca al proyecto ganador en la portada y en el pie", () => {
+    const es = textosDe("es");
+    const en = textosDe("en");
+    expect(es.ingreso.eyebrow("Hackathon X", 1)).toBe("Proyecto ganador · 1.er puesto · Hackathon X");
+    expect(en.ingreso.eyebrow("Hackathon X", 1)).toBe("Winning project · 1st place · Hackathon X");
+    expect(es.ingreso.eyebrow("Hackathon X", 2)).toBe("2.º puesto · Hackathon X");
+    expect(es.ingreso.eyebrow("Hackathon X", null)).toBe("Proyecto de concurso · Hackathon X");
+    expect(es.shell.pie.texto("HumanAIz", "Hackathon X", 1)).toMatch(/^HumanAIz es un prototipo que obtuvo el 1\.er puesto en Hackathon X\./);
+    expect(en.shell.pie.texto("HumanAIz", "Hackathon X", 1)).toMatch(/^HumanAIz is a prototype that won 1st place at Hackathon X\./);
+  });
+});

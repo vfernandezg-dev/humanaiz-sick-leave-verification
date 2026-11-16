@@ -55,6 +55,8 @@ class Settings(BaseSettings):
 
     # Datos del proyecto que se muestran en la interfaz y en los textos legales.
     concurso_nombre: str = Field(default="", max_length=120)
+    # Puesto obtenido en el concurso, si ya se conoce (1 = ganador). Vacío: no se muestra.
+    concurso_puesto: int | None = Field(default=None, ge=1, le=100)
     contacto_proyecto: str = Field(default="", max_length=200)
     # Días que se conserva la bitácora de auditoría (contiene IPs).
     audit_retention_days: int = Field(default=30, ge=1, le=3650)
@@ -136,6 +138,12 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return tuple(p.strip().lower() for p in value.split(",") if p.strip())
         return value
+
+    @field_validator("concurso_puesto", mode="before")
+    @classmethod
+    def _puesto_vacio(cls, value: object) -> object:
+        # docker compose pasa la variable vacía cuando no está definida.
+        return None if isinstance(value, str) and not value.strip() else value
 
     @field_validator("log_level")
     @classmethod

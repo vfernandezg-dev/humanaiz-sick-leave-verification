@@ -79,6 +79,7 @@ class DemoConfig(BaseModel):
 
 class ProyectoConfig(BaseModel):
     concurso: str | None
+    puesto: int | None = Field(description="Puesto obtenido en el concurso (1 = ganador).")
     contacto: str | None
     version_terminos: str
     retencion_registros_dias: int

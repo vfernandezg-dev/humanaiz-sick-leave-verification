@@ -2044,6 +2044,18 @@
             ],
             "title": "Concurso"
           },
+          "puesto": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Puesto",
+            "description": "Puesto obtenido en el concurso (1 = ganador)."
+          },
           "contacto": {
             "anyOf": [
               {
@@ -2067,6 +2079,7 @@
         "type": "object",
         "required": [
           "concurso",
+          "puesto",
           "contacto",
           "version_terminos",
           "retencion_registros_dias"

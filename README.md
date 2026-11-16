@@ -3,6 +3,8 @@
 > **Proyecto de concurso, sin uso real.** Es una demostración: todo lo que contiene es ficticio y
 > no tiene validez médica, legal ni laboral. No se deben subir datos ni documentos reales.
 
+🏆 **Proyecto ganador del 1.er puesto en la Hackathon - Grupo Rocio.**
+
 **Demo:** [humaniz.vfernandezg.dev](https://humaniz.vfernandezg.dev) · en español e inglés, con
 cuentas de prueba públicas en la pantalla de ingreso.
 
@@ -101,6 +103,7 @@ La interfaz deja claro en todo momento que es un proyecto de concurso:
 | Variable | Para qué |
 |---|---|
 | `CONCURSO_NOMBRE` | Nombre del concurso; se muestra en la franja, el pie y los textos legales |
+| `CONCURSO_PUESTO` | Puesto obtenido, si ya se conoce (1 = ganador); la portada y el pie lo destacan en cada idioma |
 | `CONTACTO_PROYECTO` | Correo o URL del equipo para consultas y solicitudes sobre datos personales |
 | `AUDIT_RETENTION_DAYS` | Días que se conserva la bitácora con IPs (por defecto 30); la purga borra lo anterior |
 

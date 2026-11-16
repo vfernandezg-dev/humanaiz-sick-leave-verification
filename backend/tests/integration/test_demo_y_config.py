@@ -253,12 +253,14 @@ async def test_config_publica_expone_los_datos_del_proyecto(app_factory: AppFact
         sin_datos = (await client.get("/api/v1/config")).json()["proyecto"]
     assert sin_datos == {
         "concurso": None,
+        "puesto": None,
         "contacto": None,
         "version_terminos": TERMINOS_VERSION,
         "retencion_registros_dias": 30,
     }
     overrides = {
         "concurso_nombre": "  Hackatón de Prueba 2026 ",
+        "concurso_puesto": 1,
         "contacto_proyecto": "equipo@example.com",
         "audit_retention_days": 7,
         "demo_ttl_hours": 12,
@@ -266,6 +268,7 @@ async def test_config_publica_expone_los_datos_del_proyecto(app_factory: AppFact
     async with app_factory(**overrides) as app, make_client(app) as client:
         cuerpo = (await client.get("/api/v1/config")).json()
     assert cuerpo["proyecto"]["concurso"] == "Hackatón de Prueba 2026"
+    assert cuerpo["proyecto"]["puesto"] == 1
     assert cuerpo["proyecto"]["contacto"] == "equipo@example.com"
     assert cuerpo["proyecto"]["retencion_registros_dias"] == 7
     assert cuerpo["demo"]["retencion_horas"] == 12
