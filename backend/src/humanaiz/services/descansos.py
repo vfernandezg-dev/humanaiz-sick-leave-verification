@@ -24,10 +24,10 @@ from humanaiz.errors import AppError, conflicto, invalido, no_encontrado, prohib
 from humanaiz.models import AnalisisDescanso, Colaborador, DescansoMedico
 from humanaiz.scanning.errors import DocumentoInvalido
 from humanaiz.scanning.preprocess import Limits, normalize
-from humanaiz.scanning.sniff import looks_like_heic, sniff
+from humanaiz.scanning.sniff import looks_like_heic, looks_like_pdf, sniff
 from humanaiz.security.deps import Principal
 from humanaiz.services import audit
-from humanaiz.storage.base import ORIGINAL, ObjetoNoEncontrado, Storage, page_name
+from humanaiz.storage.base import ObjetoNoEncontrado, Storage, page_name
 
 logger = logging.getLogger(__name__)
 
@@ -306,7 +306,14 @@ async def check_puede_subir(
                 "limite_demo",
                 "Alcanzaste el máximo de documentos de la demo. Elimina alguno para subir otro.",
             )
-    if await storage.free_bytes() < settings.min_free_disk_mb * _MB:
+    lleno = await storage.free_bytes() < settings.min_free_disk_mb * _MB
+    if not lleno and settings.storage_max_mb:
+        # `archivo_size` es lo que ocupa en disco la imagen guardada.
+        ocupado = await session.scalar(
+            select(func.coalesce(func.sum(DescansoMedico.archivo_size), 0))
+        )
+        lleno = (ocupado or 0) >= settings.storage_max_mb * _MB
+    if lleno:
         raise AppError(
             503,
             "almacenamiento_lleno",
@@ -314,6 +321,28 @@ async def check_puede_subir(
         )
     # Libera la conexión: lo que sigue (leer y normalizar el archivo) puede tardar.
     await session.commit()
+
+
+def limites_imagen(settings: Settings) -> Limits:
+    return Limits(
+        max_pixels=settings.max_image_pixels,
+        min_side_px=settings.min_image_side_px,
+        page_max_side_px=settings.page_max_side_px,
+        timeout_seconds=settings.normalize_timeout_seconds,
+    )
+
+
+def _motivo_no_admitido(head: bytes) -> str:
+    if looks_like_heic(head):
+        return (
+            "Las fotos en formato HEIC no se admiten. Conviértela a JPG "
+            "(o comparte la foto como 'Más compatible') y vuelve a subirla."
+        )
+    if looks_like_pdf(head):
+        return (
+            "Los PDF no se admiten. Sube una foto o una captura del certificado (JPG, PNG o WebP)."
+        )
+    return "Formato no admitido. Solo se aceptan imágenes JPG, PNG o WebP."
 
 
 async def crear(
@@ -327,7 +356,12 @@ async def crear(
     ip: str | None,
     normalize_slots: asyncio.Semaphore,
 ) -> uuid.UUID:
-    """Valida, normaliza y guarda el documento. Devuelve el id del descanso creado."""
+    """Valida, normaliza y guarda la imagen. Devuelve el id del descanso creado.
+
+    Del archivo recibido solo se conserva su huella (sha256), para detectar
+    duplicados. Lo que se guarda es la re-codificación hecha por el servidor:
+    nada de lo que el archivo original llevara aparte de los píxeles se almacena.
+    """
     sede_final = _sede_valida(sede, principal)
     if not data:
         raise invalido("archivo_invalido", "Adjunta el certificado médico.", campo="archivo")
@@ -335,28 +369,16 @@ async def crear(
         raise AppError(
             413,
             "archivo_demasiado_grande",
-            f"El archivo supera el máximo de {settings.max_upload_bytes // _MB} MB.",
+            f"La imagen supera el máximo de {settings.max_upload_bytes // _MB} MB.",
         )
     # El tipo se decide por el contenido; se ignoran Content-Type y nombre.
     kind = sniff(data[:16])
     if kind is None:
-        mensaje = "Formato no admitido. Sube una imagen JPG, PNG o WebP, o un PDF."
-        if looks_like_heic(data[:16]):
-            mensaje = (
-                "Las fotos en formato HEIC no se admiten. Conviértela a JPG "
-                "(o comparte la foto como 'Más compatible') y vuelve a subirla."
-            )
-        raise AppError(415, "tipo_no_soportado", mensaje)
+        raise AppError(415, "tipo_no_soportado", _motivo_no_admitido(data[:16]))
 
-    limits = Limits(
-        max_pixels=settings.max_image_pixels,
-        max_pdf_pages=settings.max_pdf_pages,
-        page_max_side_px=settings.page_max_side_px,
-        timeout_seconds=settings.normalize_timeout_seconds,
-    )
     try:
         async with normalize_slots:
-            documento = await normalize(data, kind, limits)
+            documento = await normalize(data, kind, limites_imagen(settings))
     except DocumentoInvalido as exc:
         raise AppError(422, exc.code, exc.message) from None
 
@@ -367,13 +389,12 @@ async def crear(
         sede=sede_final,
         archivo_key=prefix,
         archivo_mime=kind.value,
-        archivo_size=len(data),
+        archivo_size=sum(len(p) for p in documento.pages),
         archivo_sha256=hashlib.sha256(data).digest(),
         paginas=len(documento.pages),
         visitor_id=principal.visitor_id if principal.is_demo else None,
     )
     try:
-        await storage.put(prefix, ORIGINAL, data)
         for numero, pagina in enumerate(documento.pages, start=1):
             await storage.put(prefix, page_name(numero), pagina)
         session.add(descanso)
@@ -513,7 +534,7 @@ async def eliminar(
 # ---------- archivos ----------
 
 
-async def leer_original(
+async def descargar_imagen(
     session: AsyncSession,
     storage: Storage,
     principal: Principal,
@@ -532,9 +553,9 @@ async def leer_original(
     )
     await session.commit()
     try:
-        return await storage.get(descanso.archivo_key, ORIGINAL), descanso
+        return await storage.get(descanso.archivo_key, page_name(1)), descanso
     except ObjetoNoEncontrado:
-        logger.error("falta el archivo original del descanso %s", descanso.id)
+        logger.error("falta la imagen del descanso %s", descanso.id)
         raise no_encontrado("El documento ya no está disponible.") from None
 
 

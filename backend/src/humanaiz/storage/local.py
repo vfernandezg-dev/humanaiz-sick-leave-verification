@@ -12,7 +12,7 @@ from pathlib import Path
 from humanaiz.storage.base import ObjetoNoEncontrado
 
 _PREFIX = re.compile(r"^[0-9a-f]{2}/[0-9a-f]{2}/[0-9a-f]{32}$")
-_NAME = re.compile(r"^(original|page-[0-9]{1,3}\.jpg)$")
+_NAME = re.compile(r"^page-[0-9]{1,3}\.jpg$")
 
 
 class LocalStorage:

@@ -11,10 +11,10 @@ from PIL import Image
 import humanaiz.scanning as scanning_pkg
 from humanaiz.scanning.errors import DocumentoInvalido
 from humanaiz.scanning.preprocess import Limits, normalize
-from humanaiz.scanning.sniff import DocumentKind, looks_like_heic, sniff
+from humanaiz.scanning.sniff import DocumentKind, looks_like_heic, looks_like_pdf, sniff
 from tests import files
 
-LIMITES = Limits(max_pixels=40_000_000, max_pdf_pages=5, page_max_side_px=2400, timeout_seconds=20)
+LIMITES = Limits(max_pixels=25_000_000, min_side_px=400, page_max_side_px=2400, timeout_seconds=20)
 
 
 def _abrir(pagina: bytes) -> Image.Image:
@@ -29,22 +29,28 @@ def _abrir(pagina: bytes) -> Image.Image:
         (files.jpeg_bytes(), DocumentKind.JPEG),
         (files.png_bytes(), DocumentKind.PNG),
         (files.webp_bytes(), DocumentKind.WEBP),
-        (files.pdf_bytes(), DocumentKind.PDF),
+        # Solo imágenes: un PDF, un GIF, un SVG o un comprimido no pasan.
+        (files.pdf_bytes(), None),
+        (files.gif_bytes(), None),
+        (files.SVG, None),
+        (files.ZIP, None),
         (files.EJECUTABLE, None),
         (files.HEIC, None),
         (b"", None),
         (b"<html>", None),
-        # La firma debe estar al inicio: un PDF incrustado más adelante no cuenta.
-        (b"basura" + files.pdf_bytes(), None),
+        # La firma debe estar al inicio: una imagen incrustada más adelante no cuenta.
+        (b"basura" + files.jpeg_bytes(), None),
     ],
 )
 def test_sniff_por_firma(datos: bytes, esperado: DocumentKind | None) -> None:
     assert sniff(datos[:16]) is esperado
 
 
-def test_detecta_heic_para_dar_un_mensaje_util() -> None:
+def test_detecta_heic_y_pdf_para_dar_un_mensaje_util() -> None:
     assert looks_like_heic(files.HEIC[:16])
     assert not looks_like_heic(files.jpeg_bytes()[:16])
+    assert looks_like_pdf(files.pdf_bytes()[:16])
+    assert not looks_like_pdf(files.jpeg_bytes()[:16])
 
 
 @pytest.mark.parametrize(
@@ -88,40 +94,24 @@ async def test_imagen_grande_se_reduce_al_lado_maximo() -> None:
     assert _abrir(documento.pages[0]).size == (2400, 1440)
 
 
-async def test_contenido_agregado_al_final_no_pasa_a_la_pagina() -> None:
-    poliglota = files.jpeg_bytes() + files.HTML_ADJUNTO
-    documento = await normalize(poliglota, DocumentKind.JPEG, LIMITES)
-    assert b"<script>" not in documento.pages[0]
-
-
-async def test_pdf_se_rasteriza_por_pagina() -> None:
-    documento = await normalize(files.pdf_bytes(3), DocumentKind.PDF, LIMITES)
-    assert len(documento.pages) == 3
-    for pagina in documento.pages:
-        imagen = _abrir(pagina)
-        assert imagen.format == "JPEG"
-        assert max(imagen.size) == 2400
-
-
-async def test_pdf_con_pagina_gigante_no_pide_un_mapa_de_bits_enorme() -> None:
-    inicio = time.perf_counter()
-    gigante = files.pdf_bytes(1, ancho_pt=14_400, alto_pt=14_400)
-    documento = await normalize(gigante, DocumentKind.PDF, LIMITES)
-    assert max(_abrir(documento.pages[0]).size) == 2400
-    assert time.perf_counter() - inicio < LIMITES.timeout_seconds
+async def test_contenido_agregado_al_final_no_pasa_a_la_imagen_guardada() -> None:
+    for agregado in (files.HTML_ADJUNTO, files.ZIP, files.pdf_bytes()):
+        documento = await normalize(files.jpeg_bytes() + agregado, DocumentKind.JPEG, LIMITES)
+        assert agregado not in documento.pages[0]
+        assert b"<script>" not in documento.pages[0]
 
 
 @pytest.mark.parametrize(
     ("datos", "kind", "codigo"),
     [
         (files.png_bomba(), DocumentKind.PNG, "imagen_demasiado_grande"),
-        (files.pdf_cifrado(), DocumentKind.PDF, "pdf_protegido"),
-        (files.pdf_bytes(50), DocumentKind.PDF, "pdf_demasiadas_paginas"),
         (files.jpeg_bytes()[:400], DocumentKind.JPEG, "archivo_invalido"),
-        (b"%PDF-1.7\nno es un pdf de verdad", DocumentKind.PDF, "archivo_invalido"),
         # Una firma JPEG no basta: el contenido tiene que decodificar como JPEG.
         (b"\xff\xd8\xff" + files.png_bytes()[3:], DocumentKind.JPEG, "archivo_invalido"),
-        (files.jpeg_bytes(120, 90), DocumentKind.JPEG, "archivo_invalido"),
+        # Una firma PNG delante de un PDF tampoco.
+        (b"\x89PNG\r\n\x1a\n" + files.pdf_bytes(), DocumentKind.PNG, "archivo_invalido"),
+        # Demasiado pequeña para leer un documento (lado corto < 400 px).
+        (files.jpeg_bytes(600, 300), DocumentKind.JPEG, "imagen_demasiado_pequena"),
     ],
 )
 async def test_archivos_hostiles_o_danados_se_rechazan(
@@ -163,3 +153,11 @@ def test_el_motor_de_escaneo_no_depende_del_resto_de_la_aplicacion() -> None:
                 if modulo.startswith("humanaiz") and not modulo.startswith("humanaiz.scanning"):
                     intrusos.append(f"{archivo.name}: {modulo}")
     assert intrusos == []
+
+
+def test_no_quedan_decodificadores_de_pdf() -> None:
+    """Solo se admiten imágenes: ninguna librería de PDF debe estar instalada."""
+    import importlib.util
+
+    for modulo in ("pypdfium2", "pypdf", "fitz"):
+        assert importlib.util.find_spec(modulo) is None, modulo

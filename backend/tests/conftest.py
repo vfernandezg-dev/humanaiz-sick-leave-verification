@@ -69,7 +69,9 @@ def make_settings(tmp_path: Path) -> SettingsFactory:
             "min_free_disk_mb": 0,
             "purge_interval_seconds": 0,
             "rate_limit_login": "1000/minute",
+            "rate_limit_login_dni": "1000/minute",
             "rate_limit_upload": "1000/minute",
+            "rate_limit_upload_global": "1000/minute",
             "rate_limit_analysis": "1000/minute",
             "rate_limit_general": "10000/minute",
         }

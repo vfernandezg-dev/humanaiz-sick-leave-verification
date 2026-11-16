@@ -1,8 +1,9 @@
 """Interfaz de almacenamiento de documentos.
 
 Cada documento ocupa un prefijo generado por el servidor (nunca derivado del
-nombre de archivo del usuario) y contiene `original` y `page-N.jpg`. Hoy hay una
-implementación en disco local; una compatible con S3 solo tiene que cumplir
+nombre de archivo del usuario) y contiene solo `page-N.jpg`: la imagen
+re-codificada por el servidor. El archivo tal como se subió no se guarda. Hoy hay
+una implementación en disco local; una compatible con S3 solo tiene que cumplir
 este protocolo.
 """
 
@@ -10,8 +11,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Protocol
-
-ORIGINAL = "original"
 
 
 def page_name(numero: int) -> str:

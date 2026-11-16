@@ -86,11 +86,6 @@ async def test_subir_certificado_crea_descanso_pendiente(
     assert d["sede"] == "Lima Centro"
     assert d["fecha_inicio"] is None and d["fecha_fin"] is None
     assert d["colaborador"]["dni"] == "11111111"
-    assert d["archivo"] == {
-        "mime": "image/jpeg",
-        "size_bytes": len(files.jpeg_bytes()),
-        "paginas": 1,
-    }
     assert d["ultimo_analisis"] is None and d["analisis_en_curso"] is False
     assert d["es_propio"] is True
     assert d["permisos"] == {
@@ -99,10 +94,16 @@ async def test_subir_certificado_crea_descanso_pendiente(
         "puede_eliminar": True,
     }
 
-    # En disco: original + una página, bajo un prefijo generado por el servidor.
+    # En disco solo queda la re-codificación del servidor, bajo un prefijo
+    # generado por él; el archivo tal como se subió no se guarda.
     guardados = archivos_guardados(app)
-    assert [p.name for p in guardados] == ["original", "page-1.jpg"]
+    assert [p.name for p in guardados] == ["page-1.jpg"]
     assert "passwd" not in str(guardados[0])
+    assert d["archivo"] == {
+        "mime": "image/jpeg",
+        "size_bytes": guardados[0].stat().st_size,
+        "paginas": 1,
+    }
     fila = await db_session.scalar(select(DescansoMedico))
     assert fila is not None and len(fila.archivo_sha256) == 32
     assert (
@@ -113,19 +114,34 @@ async def test_subir_certificado_crea_descanso_pendiente(
     )
 
 
-async def test_pdf_de_varias_paginas(colaborador: httpx.AsyncClient) -> None:
-    r = await subir(colaborador, files.pdf_bytes(3), nombre="cert.pdf", tipo="application/pdf")
-    assert r.status_code == 201
+@pytest.mark.parametrize(
+    ("datos", "nombre", "tipo"),
+    [
+        (files.png_bytes(), "cert.png", "image/png"),
+        (files.webp_bytes(), "cert.webp", "image/webp"),
+    ],
+)
+async def test_png_y_webp_se_guardan_como_jpeg(
+    colaborador: httpx.AsyncClient, datos: bytes, nombre: str, tipo: str
+) -> None:
+    r = await subir(colaborador, datos, nombre=nombre, tipo=tipo)
+    assert r.status_code == 201, r.text
     d = r.json()
-    assert d["archivo"]["mime"] == "application/pdf"
-    assert d["archivo"]["paginas"] == 3
-    for numero in (1, 2, 3):
-        pagina = await colaborador.get(f"{DESCANSOS}/{d['id']}/paginas/{numero}")
-        assert pagina.status_code == 200
-        assert pagina.headers["content-type"] == "image/jpeg"
-        assert Image.open(io.BytesIO(pagina.content)).format == "JPEG"
-    assert (await colaborador.get(f"{DESCANSOS}/{d['id']}/paginas/4")).status_code == 404
+    assert (d["archivo"]["mime"], d["archivo"]["paginas"]) == (tipo, 1)
+    pagina = await colaborador.get(f"{DESCANSOS}/{d['id']}/paginas/1")
+    assert pagina.headers["content-type"] == "image/jpeg"
+    assert Image.open(io.BytesIO(pagina.content)).format == "JPEG"
+    assert (await colaborador.get(f"{DESCANSOS}/{d['id']}/paginas/2")).status_code == 404
     assert (await colaborador.get(f"{DESCANSOS}/{d['id']}/paginas/0")).status_code == 404
+
+
+async def test_pdf_se_rechaza_pidiendo_una_imagen(colaborador: httpx.AsyncClient) -> None:
+    r = await subir(colaborador, files.pdf_bytes(), nombre="cert.pdf", tipo="application/pdf")
+    assert (r.status_code, r.json()["error"]["code"]) == (415, "tipo_no_soportado")
+    assert "PDF" in r.json()["error"]["message"]
+    # Ni con el nombre o el tipo de una imagen: lo que cuenta es el contenido.
+    r = await subir(colaborador, files.pdf_bytes(), nombre="cert.jpg", tipo="image/jpeg")
+    assert r.status_code == 415
 
 
 async def test_sede_por_defecto_y_validacion(colaborador: httpx.AsyncClient) -> None:
@@ -143,10 +159,13 @@ async def test_sede_por_defecto_y_validacion(colaborador: httpx.AsyncClient) -> 
     [
         (files.EJECUTABLE, "certificado.jpg", "image/jpeg", 415, "tipo_no_soportado"),
         (files.HEIC, "foto.heic", "image/heic", 415, "tipo_no_soportado"),
-        (b"<html>hola</html>", "cert.pdf", "application/pdf", 415, "tipo_no_soportado"),
+        (files.pdf_bytes(), "cert.pdf", "application/pdf", 415, "tipo_no_soportado"),
+        (files.gif_bytes(), "cert.gif", "image/gif", 415, "tipo_no_soportado"),
+        (files.SVG, "cert.svg", "image/svg+xml", 415, "tipo_no_soportado"),
+        (files.ZIP, "cert.zip", "application/zip", 415, "tipo_no_soportado"),
+        (b"<html>hola</html>", "cert.jpg", "image/jpeg", 415, "tipo_no_soportado"),
         (files.png_bomba(), "cert.png", "image/png", 422, "imagen_demasiado_grande"),
-        (files.pdf_cifrado(), "cert.pdf", "application/pdf", 422, "pdf_protegido"),
-        (files.pdf_bytes(50), "cert.pdf", "application/pdf", 422, "pdf_demasiadas_paginas"),
+        (files.jpeg_bytes(600, 300), "cert.jpg", "image/jpeg", 422, "imagen_demasiado_pequena"),
         (files.jpeg_bytes()[:300], "cert.jpg", "image/jpeg", 422, "archivo_invalido"),
         (b"", "cert.jpg", "image/jpeg", 422, "archivo_invalido"),
     ],
@@ -211,6 +230,43 @@ async def test_limite_de_subidas(app_factory: AppFactory, db_session: AsyncSessi
         assert [(await subir(client)).status_code for _ in range(3)] == [201, 201, 429]
 
 
+async def test_limite_por_ip_aunque_cambie_la_cuenta(
+    app_factory: AppFactory, db_session: AsyncSession
+) -> None:
+    # Por cuenta 1/hora; por IP, el triple: la cuarta cuenta desde la misma IP no sube.
+    for dni in ("11111111", "22222222", "33333333", "44444444"):
+        await create_user(db_session, dni)
+    async with app_factory(rate_limit_upload="1/hour") as app:
+        estados = []
+        for dni in ("11111111", "22222222", "33333333", "44444444"):
+            async with make_client(app) as client:
+                await login(client, dni)
+                estados.append((await subir(client)).status_code)
+        assert estados == [201, 201, 201, 429]
+
+
+async def test_tope_total_no_depende_de_quien_sube(
+    app_factory: AppFactory, db_session: AsyncSession
+) -> None:
+    """Quien rota cuentas, navegadores o IPs (VPN) agota como mucho el tope total."""
+    await create_user(db_session, "11111111")
+    await create_user(db_session, "22222222")
+    async with app_factory(rate_limit_upload_global="2/hour") as app:
+        # Dos cuentas desde dos IPs distintas (como quien cambia de VPN).
+        async with (
+            make_client(app, ip="198.51.100.1") as a,
+            make_client(app, ip="203.0.113.99") as b,
+        ):
+            await login(a, "11111111")
+            await login(b, "22222222")
+            assert (await subir(a)).status_code == 201
+            assert (await subir(b)).status_code == 201
+            r = await subir(a)
+            assert (r.status_code, r.json()["error"]["code"]) == (429, "capacidad_agotada")
+            assert int(r.headers["retry-after"]) > 0
+        assert len(archivos_guardados(app)) == 2
+
+
 async def test_sin_espacio_en_disco(app_factory: AppFactory, db_session: AsyncSession) -> None:
     await create_user(db_session, "11111111")
     async with app_factory(min_free_disk_mb=10**9) as app, make_client(app) as client:
@@ -219,25 +275,50 @@ async def test_sin_espacio_en_disco(app_factory: AppFactory, db_session: AsyncSe
         assert (r.status_code, r.json()["error"]["code"]) == (503, "almacenamiento_lleno")
 
 
+async def test_tope_de_almacenamiento_total(
+    app_factory: AppFactory, db_session: AsyncSession
+) -> None:
+    await create_user(db_session, "11111111")
+    async with app_factory(storage_max_mb=1) as app, make_client(app) as client:
+        await login(client, "11111111")
+        assert (await subir(client)).status_code == 201
+        # Lo guardado ya ocupa el tope: no se aceptan más imágenes de nadie.
+        await db_session.execute(update(DescansoMedico).values(archivo_size=1024 * 1024))
+        await db_session.commit()
+        r = await subir(client)
+        assert (r.status_code, r.json()["error"]["code"]) == (503, "almacenamiento_lleno")
+        assert len(archivos_guardados(app)) == 1
+
+
 # ---------- documentos ----------
 
 
-async def test_original_se_sirve_solo_como_adjunto(colaborador: httpx.AsyncClient) -> None:
-    poliglota = files.jpeg_bytes() + files.HTML_ADJUNTO
+async def test_nada_de_lo_escondido_en_el_archivo_se_guarda_ni_se_sirve(
+    app: FastAPI, colaborador: httpx.AsyncClient
+) -> None:
+    # Una imagen válida con una página web, un ZIP y metadatos GPS adentro.
+    poliglota = files.jpeg_bytes(orientacion=1) + files.HTML_ADJUNTO + files.ZIP
     d = (await subir(colaborador, poliglota)).json()
 
-    original = await colaborador.get(f"{DESCANSOS}/{d['id']}/archivo")
-    assert original.status_code == 200
-    assert original.content == poliglota  # evidencia íntegra
-    assert original.headers["content-disposition"].startswith("attachment;")
-    assert original.headers["content-type"] == "image/jpeg"
-    assert original.headers["x-content-type-options"] == "nosniff"
-    assert "sandbox" in original.headers["content-security-policy"]
-    assert original.headers["cache-control"] == "no-store"
+    for p in archivos_guardados(app):
+        contenido = p.read_bytes()
+        assert b"<script>" not in contenido and b"FabricanteSecreto" not in contenido
 
-    # La página que se muestra en pantalla es una re-codificación limpia.
+    descarga = await colaborador.get(f"{DESCANSOS}/{d['id']}/archivo")
+    assert descarga.status_code == 200
+    assert descarga.content != poliglota
+    assert b"<script>" not in descarga.content and files.ZIP not in descarga.content
+    assert Image.open(io.BytesIO(descarga.content)).format == "JPEG"
+    assert descarga.headers["content-disposition"].startswith("attachment;")
+    assert descarga.headers["content-disposition"].endswith('.jpg"')
+    assert descarga.headers["content-type"] == "image/jpeg"
+    assert descarga.headers["x-content-type-options"] == "nosniff"
+    assert "sandbox" in descarga.headers["content-security-policy"]
+    assert descarga.headers["cache-control"] == "no-store"
+
+    # La que se muestra en pantalla es la misma re-codificación.
     pagina = await colaborador.get(f"{DESCANSOS}/{d['id']}/paginas/1")
-    assert b"<script>" not in pagina.content
+    assert pagina.content == descarga.content
     assert "sandbox" in pagina.headers["content-security-policy"]
 
 
@@ -403,7 +484,7 @@ async def test_el_dueno_elimina_un_pendiente_y_sus_archivos(
     app: FastAPI, colaborador: httpx.AsyncClient, db_session: AsyncSession
 ) -> None:
     d = (await subir(colaborador)).json()
-    assert len(archivos_guardados(app)) == 2
+    assert len(archivos_guardados(app)) == 1
     assert (await colaborador.delete(f"{DESCANSOS}/{d['id']}")).status_code == 204
     assert archivos_guardados(app) == []
     assert (await colaborador.get(f"{DESCANSOS}/{d['id']}")).status_code == 404
@@ -557,8 +638,8 @@ async def test_purga_elimina_lo_caducado_de_la_demo_y_los_huerfanos(
         # Un archivo huérfano antiguo (subida interrumpida) y otro recién escrito.
         storage = app.state.storage
         antiguo, nuevo = storage.new_prefix(), storage.new_prefix()
-        await storage.put(antiguo, "original", b"x")
-        await storage.put(nuevo, "original", b"x")
+        await storage.put(antiguo, "page-1.jpg", b"x")
+        await storage.put(nuevo, "page-1.jpg", b"x")
         import os
 
         marca = (datetime.now(UTC) - timedelta(hours=3)).timestamp()

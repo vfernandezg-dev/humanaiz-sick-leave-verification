@@ -10,6 +10,7 @@ from humanaiz.api.deps import ClientIp, DbDep, LimiterDep, SettingsDep, StorageD
 from humanaiz.api.schemas import Analisis, AnalisisRequest
 from humanaiz.security.deps import CurrentUser
 from humanaiz.security.llm_key import LLM_KEY_HEADER, read_llm_key
+from humanaiz.security.ratelimit import client_ip
 from humanaiz.services import analisis as servicio
 from humanaiz.services.descansos import analisis_to_schema
 
@@ -51,7 +52,14 @@ async def analizar_descanso(
     # Sin sesión de base de datos con vida de petición: el servicio abre y
     # cierra las suyas para no retener una conexión mientras responde el proveedor.
     api_key = read_llm_key(request)
-    await limiter.check(settings.rate_limit_analysis, "analisis", principal.limit_key)
+    # Sin tope total: cada análisis lo paga la clave de quien lo pide, y la carga
+    # del servidor ya la acota ANALYSIS_MAX_CONCURRENCY.
+    await limiter.check_en_capas(
+        "analisis",
+        limite=settings.rate_limit_analysis,
+        usuario=principal.limit_key,
+        ip=client_ip(request),
+    )
     fila = await servicio.analizar(
         db,
         storage,

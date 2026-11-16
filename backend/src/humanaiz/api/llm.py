@@ -14,6 +14,7 @@ from humanaiz.scanning.catalog import get_provider
 from humanaiz.scanning.errors import ProviderError, TiempoAgotado
 from humanaiz.security.deps import CurrentUser
 from humanaiz.security.llm_key import LLM_KEY_HEADER, read_llm_key
+from humanaiz.security.ratelimit import client_ip
 from humanaiz.services.analisis import to_app_error
 
 router = APIRouter(prefix="/llm", tags=["análisis"])
@@ -58,7 +59,14 @@ async def modelos_disponibles(
             "llm_proveedor_no_soportado", "Ese proveedor de IA no está disponible.", "proveedor"
         )
     # Límite estricto: sin él, este endpoint serviría para probar claves robadas.
-    await limiter.check(settings.rate_limit_modelos, "modelos", principal.limit_key)
+    # El tope total impide hacerlo a escala rotando IPs o navegadores.
+    await limiter.check_en_capas(
+        "modelos",
+        limite=settings.rate_limit_modelos,
+        usuario=principal.limit_key,
+        ip=client_ip(request),
+        limite_global=settings.rate_limit_modelos_global,
+    )
 
     try:
         async with asyncio.timeout(_PLAZO_S):

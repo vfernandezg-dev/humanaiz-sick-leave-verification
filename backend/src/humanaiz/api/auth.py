@@ -22,6 +22,10 @@ router = APIRouter(prefix="/auth", tags=["sesión"])
 _FACTOR_LIMITE_IP = 4
 
 
+def _es_cuenta_demo(settings: Settings, dni: str) -> bool:
+    return settings.demo_mode and dni in (settings.demo_colaborador_dni, settings.demo_rrhh_dni)
+
+
 def usuario_from_principal(principal: Principal) -> Usuario:
     colaborador = None
     if principal.colaborador_id is not None:
@@ -103,6 +107,11 @@ async def login(
         scale_limit(settings.rate_limit_login, _FACTOR_LIMITE_IP), "login-ip", bucket
     )
     await limiter.check(settings.rate_limit_login, "login", bucket, payload.dni)
+    if not _es_cuenta_demo(settings, payload.dni):
+        # Contra quien rota IPs (VPN, proxies) para probar contraseñas de una
+        # misma cuenta. En las cuentas de la demo no aplica: su contraseña es
+        # pública y este tope solo serviría para dejar a todos fuera.
+        await limiter.check(settings.rate_limit_login_dni, "login-dni", payload.dni)
 
     result = await auth_service.login(
         session,

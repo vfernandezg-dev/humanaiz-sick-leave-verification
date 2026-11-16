@@ -91,9 +91,7 @@ async def esperar_tareas(app: FastAPI) -> None:
 
 async def test_analisis_completo_no_modifica_el_descanso(entorno, db_session: AsyncSession) -> None:
     app, colaborador, _, fake = entorno
-    d = (
-        await subir(colaborador, files.pdf_bytes(2), nombre="c.pdf", tipo="application/pdf")
-    ).json()
+    d = (await subir(colaborador, files.png_bytes(), nombre="c.png", tipo="image/png")).json()
 
     r = await analizar(colaborador, d["id"])
     assert r.status_code == 201, r.text
@@ -108,8 +106,8 @@ async def test_analisis_completo_no_modifica_el_descanso(entorno, db_session: As
     assert a["motivos_rechazo"] == []
     assert a["uso"] == {"tokens_entrada": 1200, "tokens_salida": 180}
     assert a["version_prompt"] and a["version_reglas"]
-    # El proveedor recibió las dos páginas normalizadas y una clave.
-    assert fake.llamadas == [{"model": "fake-1", "paginas": 2, "con_clave": True}]
+    # El proveedor recibió la imagen normalizada y una clave.
+    assert fake.llamadas == [{"model": "fake-1", "paginas": 1, "con_clave": True}]
 
     # El análisis es una sugerencia: ni fechas ni estado del descanso cambian.
     visto = (await colaborador.get(f"{DESCANSOS}/{d['id']}")).json()

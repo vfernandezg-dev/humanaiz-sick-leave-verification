@@ -367,7 +367,7 @@
                   "archivo": {
                     "type": "string",
                     "format": "binary",
-                    "description": "Certificado médico: JPG, PNG, WebP o PDF."
+                    "description": "Imagen del certificado médico: JPG, PNG o WebP."
                   },
                   "sede": {
                     "type": "string",
@@ -702,9 +702,9 @@
         "tags": [
           "descansos"
         ],
-        "summary": "Descargar Original",
-        "description": "Documento tal como se subió. Siempre como descarga, nunca en línea.",
-        "operationId": "descargar_original_api_v1_descansos__descanso_id__archivo_get",
+        "summary": "Descargar Imagen",
+        "description": "Imagen guardada (la re-codificación del servidor), siempre como descarga.",
+        "operationId": "descargar_imagen_api_v1_descansos__descanso_id__archivo_get",
         "parameters": [
           {
             "name": "descanso_id",
@@ -721,7 +721,7 @@
           "200": {
             "description": "Successful Response",
             "content": {
-              "application/octet-stream": {}
+              "image/jpeg": {}
             }
           },
           "422": {
@@ -953,7 +953,7 @@
           "demo"
         ],
         "summary": "Certificado De Ejemplo",
-        "description": "Genera un certificado ficticio con los datos del propio usuario.\n\nSolo existe en modo demo: los datos de las cuentas de prueba son inventados.\nVariantes: `valido` (coincide con la ficha), `observado` (días que no cuadran\ny sin CMP), `otra-persona` (a nombre de otra persona) y `citt`.",
+        "description": "Genera un certificado ficticio (JPEG) con los datos del propio usuario.\n\nSolo existe en modo demo: los datos de las cuentas de prueba son inventados.\nVariantes: `valido` (coincide con la ficha), `observado` (días que no cuadran\ny sin CMP), `otra-persona` (a nombre de otra persona) y `citt`.",
         "operationId": "certificado_de_ejemplo_api_v1_demo_certificados__variante__get",
         "parameters": [
           {
@@ -970,28 +970,13 @@
               "type": "string",
               "title": "Variante"
             }
-          },
-          {
-            "name": "formato",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "enum": [
-                "jpg",
-                "pdf"
-              ],
-              "type": "string",
-              "default": "jpg",
-              "title": "Formato"
-            }
           }
         ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
-              "image/jpeg": {},
-              "application/pdf": {}
+              "image/jpeg": {}
             }
           },
           "422": {
@@ -1161,16 +1146,23 @@
             "type": "array",
             "title": "Tipos Mime"
           },
-          "max_paginas_pdf": {
+          "min_lado_px": {
             "type": "integer",
-            "title": "Max Paginas Pdf"
+            "title": "Min Lado Px",
+            "description": "Lado corto mínimo de la imagen, en píxeles."
+          },
+          "max_lado_px": {
+            "type": "integer",
+            "title": "Max Lado Px",
+            "description": "Lado largo con el que se guarda la imagen. El navegador puede reducirla a este tamaño antes de subirla sin perder nada de lo que se conserva."
           }
         },
         "type": "object",
         "required": [
           "max_bytes",
           "tipos_mime",
-          "max_paginas_pdf"
+          "min_lado_px",
+          "max_lado_px"
         ],
         "title": "CargaConfig"
       },
@@ -1564,11 +1556,13 @@
         "properties": {
           "mime": {
             "type": "string",
-            "title": "Mime"
+            "title": "Mime",
+            "description": "Formato de la imagen que se subió."
           },
           "size_bytes": {
             "type": "integer",
-            "title": "Size Bytes"
+            "title": "Size Bytes",
+            "description": "Lo que ocupa la imagen guardada (re-codificada)."
           },
           "paginas": {
             "type": "integer",

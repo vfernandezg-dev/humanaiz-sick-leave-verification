@@ -18,10 +18,11 @@ from humanaiz.api.schemas import (
 from humanaiz.config import Settings
 from humanaiz.legal import TERMINOS_VERSION
 from humanaiz.scanning.catalog import enabled_providers
+from humanaiz.scanning.sniff import DocumentKind
 
 router = APIRouter(tags=["configuración"])
 
-TIPOS_MIME_ACEPTADOS = ("image/jpeg", "image/png", "image/webp", "application/pdf")
+TIPOS_MIME_ACEPTADOS = tuple(kind.value for kind in DocumentKind)
 
 
 def _demo(settings: Settings) -> DemoConfig:
@@ -69,7 +70,8 @@ async def public_config(settings: SettingsDep) -> ConfigPublica:
         carga=CargaConfig(
             max_bytes=settings.max_upload_bytes,
             tipos_mime=list(TIPOS_MIME_ACEPTADOS),
-            max_paginas_pdf=settings.max_pdf_pages,
+            min_lado_px=settings.min_image_side_px,
+            max_lado_px=settings.page_max_side_px,
         ),
         llm=LlmConfig(
             proveedores=[

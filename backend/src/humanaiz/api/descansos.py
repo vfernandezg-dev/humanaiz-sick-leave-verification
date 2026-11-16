@@ -11,8 +11,8 @@ from starlette.datastructures import UploadFile
 from humanaiz.api.deps import ClientIp, LimiterDep, SessionDep, SettingsDep, StorageDep
 from humanaiz.api.schemas import DecisionRequest, Descanso, EstadoDescanso, Pagina
 from humanaiz.errors import invalido
-from humanaiz.scanning.sniff import DocumentKind
 from humanaiz.security.deps import CurrentUser, RRHHUser
+from humanaiz.security.ratelimit import client_ip
 from humanaiz.services import descansos as servicio
 
 router = APIRouter(tags=["descansos"])
@@ -35,7 +35,7 @@ _CUERPO_ALTA = {
                         "archivo": {
                             "type": "string",
                             "format": "binary",
-                            "description": "Certificado médico: JPG, PNG, WebP o PDF.",
+                            "description": "Imagen del certificado médico: JPG, PNG o WebP.",
                         },
                         "sede": {
                             "type": "string",
@@ -61,9 +61,15 @@ async def crear_descanso(
     ip: ClientIp,
 ) -> Descanso:
     # El formulario no se declara como parámetro a propósito: así la
-    # autenticación, el límite de uso y las cuotas se comprueban ANTES de leer
-    # (y volcar a disco) un cuerpo de hasta 10 MB.
-    await limiter.check(settings.rate_limit_upload, "upload", principal.limit_key)
+    # autenticación, los límites de uso y las cuotas se comprueban ANTES de leer
+    # (y volcar a disco) el cuerpo de la petición.
+    await limiter.check_en_capas(
+        "upload",
+        limite=settings.rate_limit_upload,
+        usuario=principal.limit_key,
+        ip=client_ip(request),
+        limite_global=settings.rate_limit_upload_global,
+    )
     await servicio.check_puede_subir(session, storage, settings, principal)
 
     form = await request.form(max_files=1, max_fields=4, max_part_size=4096)
@@ -169,22 +175,23 @@ async def decidir_descanso(
 @router.get(
     "/descansos/{descanso_id}/archivo",
     response_class=Response,
-    responses={200: {"content": {"application/octet-stream": {}}}},
+    responses={200: {"content": {"image/jpeg": {}}}},
 )
-async def descargar_original(
+async def descargar_imagen(
     descanso_id: uuid.UUID,
     principal: CurrentUser,
     session: SessionDep,
     storage: StorageDep,
     ip: ClientIp,
 ) -> Response:
-    """Documento tal como se subió. Siempre como descarga, nunca en línea."""
-    data, descanso = await servicio.leer_original(session, storage, principal, descanso_id, ip=ip)
-    extension = DocumentKind(descanso.archivo_mime).extension
-    nombre = f"certificado-{str(descanso.id)[:8]}.{extension}"
+    """Imagen guardada (la re-codificación del servidor), siempre como descarga."""
+    data, descanso = await servicio.descargar_imagen(
+        session, storage, principal, descanso_id, ip=ip
+    )
+    nombre = f"certificado-{str(descanso.id)[:8]}.jpg"
     return Response(
         content=data,
-        media_type=descanso.archivo_mime,
+        media_type="image/jpeg",
         headers={
             "Content-Disposition": f'attachment; filename="{nombre}"',
             "Content-Security-Policy": _CSP_DOCUMENTO,

@@ -407,11 +407,9 @@ def renderizar(datos: DatosCertificado, *, pie: str | None = None) -> Image.Imag
     return _marca_de_agua(lienzo.imagen).convert("RGB")
 
 
-def exportar(imagen: Image.Image, formato: Literal["jpg", "png", "pdf"]) -> bytes:
+def exportar(imagen: Image.Image, formato: Literal["jpg", "png"]) -> bytes:
     buffer = io.BytesIO()
-    if formato == "pdf":
-        imagen.save(buffer, "PDF", resolution=150.0)
-    elif formato == "png":
+    if formato == "png":
         imagen.save(buffer, "PNG", optimize=True)
     else:
         imagen.save(buffer, "JPEG", quality=88, optimize=True)

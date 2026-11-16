@@ -59,14 +59,16 @@
 		respond 404
 	}
 
-	# Subida de certificados: único punto con cuerpo grande.
+	# Subida de certificados: único punto con cuerpo grande. Imagen de hasta
+	# 5 MB (MAX_UPLOAD_BYTES) más el margen del multipart; lo que exceda se corta
+	# aquí, antes de llegar a la API.
 	@carga {
 		method POST
 		path /api/v1/descansos
 	}
 	handle @carga {
 		request_body {
-			max_size 11MB
+			max_size 6MB
 		}
 		reverse_proxy api:8000 {
 			transport http {

@@ -69,13 +69,17 @@ class Settings(BaseSettings):
     cookie_secure: bool = True
 
     storage_local_path: Path = Path("/data/uploads")
-    max_upload_bytes: int = Field(default=10 * 1024 * 1024, ge=1024)
-    max_image_pixels: int = Field(default=40_000_000, ge=1_000_000)
-    max_pdf_pages: int = Field(default=5, ge=1, le=20)
+    # Solo imágenes (JPEG, PNG, WebP). Si se sube por encima de 5 MB, hay que
+    # ampliar también `max_size` en deploy/Caddyfile.
+    max_upload_bytes: int = Field(default=5 * 1024 * 1024, ge=1024, le=20 * 1024 * 1024)
+    max_image_pixels: int = Field(default=25_000_000, ge=1_000_000, le=100_000_000)
+    min_image_side_px: int = Field(default=400, ge=50, le=2000)
     page_max_side_px: int = Field(default=2400, ge=600, le=8000)
     normalize_timeout_seconds: int = Field(default=15, ge=1, le=120)
     normalize_max_concurrency: int = Field(default=2, ge=1, le=16)
     min_free_disk_mb: int = Field(default=500, ge=0)
+    # Tope de lo que ocupan todas las imágenes guardadas. 0 lo desactiva.
+    storage_max_mb: int = Field(default=2048, ge=0)
 
     llm_enabled_providers: Annotated[tuple[str, ...], NoDecode] = (
         "anthropic",
@@ -93,9 +97,19 @@ class Settings(BaseSettings):
 
     rate_limit_storage_uri: str = "memory://"
     rate_limit_login: str = "5/minute"
+    # Los límites se aplican en capas: por usuario (o visitante en la demo), por
+    # IP (el triple) y, donde hay un recurso del servidor en juego, en total. Las
+    # dos primeras se esquivan cambiando de navegador o usando una VPN; las
+    # totales no dependen de quién llama y son las que protegen de verdad al
+    # servidor, junto con STORAGE_MAX_MB y las concurrencias máximas.
     rate_limit_upload: str = "10/hour"
+    rate_limit_upload_global: str = "300/hour"
     rate_limit_analysis: str = "30/hour"
     rate_limit_modelos: str = "30/hour"
+    rate_limit_modelos_global: str = "300/hour"
+    # Intentos de ingreso a una misma cuenta real desde cualquier IP (no aplica a
+    # las cuentas públicas de la demo, cuya contraseña ya es conocida).
+    rate_limit_login_dni: str = "30/hour"
     rate_limit_general: str = "240/minute"
 
     # 0 desactiva la purga periódica dentro de la API (se puede lanzar con `humanaiz purge`).

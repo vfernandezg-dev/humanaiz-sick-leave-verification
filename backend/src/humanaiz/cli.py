@@ -14,16 +14,25 @@ import getpass
 import json
 import re
 import sys
+import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 
 from humanaiz.config import ConfigError, Settings, get_settings
 from humanaiz.db import Database
-from humanaiz.models import CATEGORIAS, ROLES, SEXOS, Colaborador, User, UserSession
+from humanaiz.models import (
+    CATEGORIAS,
+    ROLES,
+    SEXOS,
+    Colaborador,
+    DescansoMedico,
+    User,
+    UserSession,
+)
 from humanaiz.security.passwords import hash_password, validate_new_password
-from humanaiz.services import demo
+from humanaiz.services import audit, demo
 from humanaiz.storage.local import LocalStorage
 
 Handler = Callable[[argparse.Namespace, Settings], Awaitable[int]]
@@ -239,6 +248,37 @@ async def _purge(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
+async def _delete_descanso(args: argparse.Namespace, settings: Settings) -> int:
+    """Retira de inmediato un descanso y su imagen (p. ej. ante una denuncia)."""
+    try:
+        descanso_id = uuid.UUID(args.id)
+    except ValueError:
+        return _error("el id debe ser un UUID (el que aparece en /descansos/<id>).")
+    db = Database(settings.database_url, pool_size=1)
+    try:
+        async with db.session() as session:
+            prefijo = await session.scalar(
+                delete(DescansoMedico)
+                .where(DescansoMedico.id == descanso_id)
+                .returning(DescansoMedico.archivo_key)
+            )
+            if prefijo is None:
+                return _error(f"no existe el descanso {descanso_id}.")
+            audit.record(
+                session,
+                "descanso_retirado",
+                entidad="descanso",
+                entidad_id=descanso_id,
+                detalle={"motivo": args.motivo},
+            )
+            await session.commit()
+        await LocalStorage(settings.storage_local_path).delete_prefix(prefijo)
+    finally:
+        await db.dispose()
+    print(f"Descanso {descanso_id} y su imagen eliminados.")
+    return 0
+
+
 async def _export_openapi(args: argparse.Namespace, settings: Settings) -> int:
     from humanaiz.main import create_app
 
@@ -285,6 +325,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     purga = sub.add_parser("purge", help="Ejecuta una vez la purga de mantenimiento")
     purga.set_defaults(handler=_purge)
+
+    retirar = sub.add_parser(
+        "delete-descanso", help="Elimina ya un descanso y su imagen (contenido indebido)"
+    )
+    retirar.add_argument("id", help="UUID del descanso (el de la URL /descansos/<id>)")
+    retirar.add_argument(
+        "--motivo",
+        default="contenido_indebido",
+        choices=("contenido_indebido", "datos_reales", "solicitud_titular", "otro"),
+    )
+    retirar.set_defaults(handler=_delete_descanso)
 
     openapi = sub.add_parser("export-openapi", help="Escribe el esquema OpenAPI de la API")
     openapi.add_argument("--output", "-o", default="-", help="Archivo de salida ('-' = stdout)")

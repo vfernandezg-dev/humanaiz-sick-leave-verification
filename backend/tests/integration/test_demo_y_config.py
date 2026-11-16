@@ -37,8 +37,12 @@ async def test_config_publica_sin_demo(app_factory: AppFactory) -> None:
         "usuarios": [],
         "retencion_horas": 24,
     }
-    assert cuerpo["carga"]["max_bytes"] == 10 * 1024 * 1024
-    assert "application/pdf" in cuerpo["carga"]["tipos_mime"]
+    assert cuerpo["carga"] == {
+        "max_bytes": 5 * 1024 * 1024,
+        "tipos_mime": ["image/jpeg", "image/png", "image/webp"],
+        "min_lado_px": 400,
+        "max_lado_px": 2400,
+    }
     proveedores = {p["id"]: p for p in cuerpo["llm"]["proveedores"]}
     assert set(proveedores) == {
         "anthropic",
@@ -309,15 +313,12 @@ async def test_certificados_de_ejemplo_para_probar_la_lectura(
             assert "sandbox" in r.headers["content-security-policy"]
             imagen = Image.open(io.BytesIO(r.content))
             assert imagen.size == (1240, 1754)
-        pdf = await cliente.get("/api/v1/demo/certificados/valido", params={"formato": "pdf"})
-        assert pdf.headers["content-type"] == "application/pdf"
-        assert pdf.content.startswith(b"%PDF-")
         assert (await cliente.get("/api/v1/demo/certificados/inventado")).status_code == 422
 
         # El certificado generado se puede subir: es un documento válido para la aplicación.
         subida = await cliente.post(
             "/api/v1/descansos",
-            files={"archivo": ("ejemplo.pdf", pdf.content, "application/pdf")},
+            files={"archivo": ("ejemplo.jpg", r.content, "image/jpeg")},
         )
         assert subida.status_code == 201, subida.text
 
@@ -329,3 +330,37 @@ async def test_sin_modo_demo_no_hay_certificados_de_ejemplo(
     await login(client, "12345678")
     r = await client.get("/api/v1/demo/certificados/valido")
     assert (r.status_code, r.json()["error"]["code"]) == (404, "no_encontrado")
+
+
+async def test_cli_retira_un_descanso_y_su_imagen_de_inmediato(
+    app_factory: AppFactory, db_session: AsyncSession
+) -> None:
+    """Ante una denuncia no hace falta esperar a la purga de 24 horas."""
+    from humanaiz.models import AuditLog, DescansoMedico
+    from tests import files
+
+    await create_user(db_session, "12345678")
+    async with app_factory() as app, make_client(app) as cliente:
+        await login(cliente, "12345678")
+        subida = await cliente.post(
+            "/api/v1/descansos",
+            data={"sede": "Lima"},
+            files={"archivo": ("c.jpg", files.jpeg_bytes(), "image/jpeg")},
+        )
+        descanso_id = subida.json()["id"]
+        raiz = app.state.settings.storage_local_path
+        assert any(p.is_file() for p in raiz.rglob("*"))
+
+        settings = app.state.settings
+        assert await cli._delete_descanso(_args(id="no-es-uuid", motivo="otro"), settings) == 2
+        args = _args(id=descanso_id, motivo="contenido_indebido")
+        assert await cli._delete_descanso(args, settings) == 0
+        assert await cli._delete_descanso(args, settings) == 2  # ya no existe
+
+        assert not any(p.is_file() for p in raiz.rglob("*"))
+        assert await db_session.scalar(select(func.count()).select_from(DescansoMedico)) == 0
+        assert (await cliente.get(f"/api/v1/descansos/{descanso_id}")).status_code == 404
+        retirado = await db_session.scalar(
+            select(AuditLog).where(AuditLog.accion == "descanso_retirado")
+        )
+        assert retirado is not None and retirado.detalle == {"motivo": "contenido_indebido"}

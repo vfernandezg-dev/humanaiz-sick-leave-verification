@@ -18,6 +18,10 @@ from limits.storage import storage_from_string
 
 from humanaiz.errors import AppError
 
+# El tope por IP es más holgado que el por cuenta: muchas personas pueden
+# compartir una IP (redes móviles con CGNAT, oficinas).
+FACTOR_LIMITE_IP = 3
+
 
 class RateLimiter:
     def __init__(self, storage_uri: str) -> None:
@@ -30,19 +34,49 @@ class RateLimiter:
             self._parsed[limit] = parse(limit)
         return self._parsed[limit]
 
-    async def check(self, limit: str, *key: str) -> None:
+    async def check(
+        self,
+        limit: str,
+        *key: str,
+        code: str = "rate_limit",
+        message: str = "Demasiadas solicitudes. Espera un momento antes de volver a intentarlo.",
+    ) -> None:
         """Cuenta un uso y lanza 429 con Retry-After si se superó el límite."""
         item = self._item(limit)
         if await self._strategy.hit(item, *key):
             return
         stats = await self._strategy.get_window_stats(item, *key)
         retry_after = max(1, math.ceil(stats.reset_time - time.time()))
-        raise AppError(
-            429,
-            "rate_limit",
-            "Demasiadas solicitudes. Espera un momento antes de volver a intentarlo.",
-            headers={"Retry-After": str(retry_after)},
-        )
+        raise AppError(429, code, message, headers={"Retry-After": str(retry_after)})
+
+    async def check_en_capas(
+        self,
+        accion: str,
+        *,
+        limite: str,
+        usuario: str,
+        ip: str,
+        limite_global: str | None = None,
+    ) -> None:
+        """Aplica un límite por usuario, otro por IP y, opcionalmente, uno total.
+
+        Los dos primeros se esquivan cambiando de navegador, de IP o usando una
+        VPN: sirven para repartir el uso con justicia. El total no depende de
+        quién llama y es el que acota de verdad la carga del servidor; si se
+        agota, el servicio responde "vuelve más tarde" a todos por igual.
+        """
+        await self.check(limite, accion, usuario)
+        await self.check(scale_limit(limite, FACTOR_LIMITE_IP), f"{accion}-ip", ip)
+        if limite_global:
+            await self.check(
+                limite_global,
+                f"{accion}-global",
+                code="capacidad_agotada",
+                message=(
+                    "El servicio alcanzó su capacidad por ahora. "
+                    "Vuelve a intentarlo en unos minutos."
+                ),
+            )
 
 
 def scale_limit(limit: str, factor: int) -> str:

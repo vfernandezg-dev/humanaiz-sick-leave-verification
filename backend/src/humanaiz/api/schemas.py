@@ -87,7 +87,13 @@ class ProyectoConfig(BaseModel):
 class CargaConfig(BaseModel):
     max_bytes: int
     tipos_mime: list[str]
-    max_paginas_pdf: int
+    min_lado_px: int = Field(description="Lado corto mínimo de la imagen, en píxeles.")
+    max_lado_px: int = Field(
+        description=(
+            "Lado largo con el que se guarda la imagen. El navegador puede reducirla a "
+            "este tamaño antes de subirla sin perder nada de lo que se conserva."
+        )
+    )
 
 
 class ModeloLlm(BaseModel):
@@ -231,8 +237,8 @@ class DescansoColaborador(BaseModel):
 
 
 class DescansoArchivo(BaseModel):
-    mime: str
-    size_bytes: int
+    mime: str = Field(description="Formato de la imagen que se subió.")
+    size_bytes: int = Field(description="Lo que ocupa la imagen guardada (re-codificada).")
     paginas: int
 
 

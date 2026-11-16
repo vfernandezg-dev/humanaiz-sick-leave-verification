@@ -24,10 +24,10 @@ from humanaiz.scanning.rules import RULES_VERSION, evaluate
 from humanaiz.scanning.sniff import DocumentKind
 from humanaiz.scanning.types import ContextoValidacion, Extraccion
 from humanaiz.services import certificados
-from humanaiz.storage.base import ORIGINAL, Storage, page_name
+from humanaiz.storage.base import Storage, page_name
 
 # Cambiar la versión regenera las muestras en el siguiente despliegue.
-_VERSION_MUESTRAS = "v2"
+_VERSION_MUESTRAS = "v3"
 _NAMESPACE = uuid.UUID("6f3f1c1e-5a7b-4a0e-9d3a-0b6c2f0d7e11")
 
 
@@ -119,7 +119,6 @@ async def sembrar(
         original = certificados.exportar(certificados.renderizar(datos), "jpg")
         documento = await normalize(original, DocumentKind.JPEG, limits)
         prefix = storage.new_prefix()
-        await storage.put(prefix, ORIGINAL, original)
         for numero, pagina in enumerate(documento.pages, start=1):
             await storage.put(prefix, page_name(numero), pagina)
 
@@ -151,7 +150,7 @@ async def sembrar(
                 decidido_at=ahora if decidido else None,
                 archivo_key=prefix,
                 archivo_mime=DocumentKind.JPEG.value,
-                archivo_size=len(original),
+                archivo_size=sum(len(p) for p in documento.pages),
                 archivo_sha256=hashlib.sha256(original).digest(),
                 paginas=len(documento.pages),
                 es_muestra=True,

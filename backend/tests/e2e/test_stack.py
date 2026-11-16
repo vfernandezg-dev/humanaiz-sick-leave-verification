@@ -222,10 +222,11 @@ def _estado_con_curl(ruta: str, archivo: Path, token: str) -> str:
 def test_limites_de_cuerpo_en_el_proxy(colaborador: httpx.Client, tmp_path: Path) -> None:
     token = colaborador.headers["Authorization"].removeprefix("Bearer ")
     grande = tmp_path / "grande.bin"
-    grande.write_bytes(b"0" * (11 * 1024 * 1024))
+    grande.write_bytes(b"0" * (7 * 1024 * 1024))
     mediano = tmp_path / "mediano.bin"
     mediano.write_bytes(b"0" * 70_000)
-    # La subida admite hasta ~10 MB; el resto de la API, 64 KB.
+    # La subida admite una imagen de hasta 5 MB (6 MB con el multipart); el resto
+    # de la API, 64 KB.
     assert _estado_con_curl("/api/v1/descansos", grande, token) == "413"
     assert _estado_con_curl("/api/v1/auth/logout", mediano, token) == "413"
     # La sesión sigue viva: el proxy cortó antes de llegar a la API.

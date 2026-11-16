@@ -1,4 +1,5 @@
-"""Generadores de archivos de prueba: imágenes y PDF válidos, dañados y hostiles."""
+"""Generadores de archivos de prueba: imágenes válidas, dañadas y hostiles, y
+formatos que no se admiten."""
 
 from __future__ import annotations
 
@@ -6,9 +7,7 @@ import io
 import struct
 import zlib
 
-import pypdfium2 as pdfium
 from PIL import Image, ImageDraw
-from pypdf import PdfReader, PdfWriter
 
 
 def _lienzo(ancho: int, alto: int, texto: str = "CERTIFICADO DE PRUEBA") -> Image.Image:
@@ -64,26 +63,21 @@ def png_bomba(ancho: int = 30_000, alto: int = 30_000) -> bytes:
     return firma + nuevo_ihdr + resto[12 + longitud :]
 
 
-def pdf_bytes(paginas: int = 1, *, ancho_pt: float = 595, alto_pt: float = 842) -> bytes:
-    documento = pdfium.PdfDocument.new()
-    for _ in range(paginas):
-        documento.new_page(ancho_pt, alto_pt)
+def pdf_bytes() -> bytes:
+    """Un PDF válido con una página que contiene la imagen de un certificado."""
     buffer = io.BytesIO()
-    documento.save(buffer)
-    documento.close()
+    _lienzo(800, 600).save(buffer, "PDF")
     return buffer.getvalue()
 
 
-def pdf_cifrado() -> bytes:
-    writer = PdfWriter()
-    for pagina in PdfReader(io.BytesIO(pdf_bytes())).pages:
-        writer.add_page(pagina)
-    writer.encrypt("secreto", algorithm="RC4-128")
+def gif_bytes() -> bytes:
     buffer = io.BytesIO()
-    writer.write(buffer)
+    _lienzo(800, 600).save(buffer, "GIF")
     return buffer.getvalue()
 
 
 EJECUTABLE = b"MZ\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00\xff\xff" + b"\x00" * 200
 HEIC = b"\x00\x00\x00\x18ftypheic\x00\x00\x00\x00mif1heic" + b"\x00" * 200
 HTML_ADJUNTO = b"<html><script>alert('xss')</script></html>"
+SVG = b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
+ZIP = b"PK\x03\x04\x14\x00\x00\x00\x08\x00" + b"\x00" * 200

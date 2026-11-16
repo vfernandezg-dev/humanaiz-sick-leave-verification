@@ -18,9 +18,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from humanaiz.config import ConfigError, Settings
 from humanaiz.models import Colaborador, User, UserSession
-from humanaiz.scanning.preprocess import Limits
 from humanaiz.security.passwords import hash_password
 from humanaiz.services import demo_muestras
+from humanaiz.services.descansos import limites_imagen
 from humanaiz.storage.base import Storage
 
 # Personas ficticias para poblar el padrón de la demo.
@@ -224,12 +224,7 @@ async def seed(
             session,
             storage,
             hoy=datetime.now(ZoneInfo(settings.tz_negocio)).date(),
-            limits=Limits(
-                max_pixels=settings.max_image_pixels,
-                max_pdf_pages=settings.max_pdf_pages,
-                page_max_side_px=settings.page_max_side_px,
-                timeout_seconds=settings.normalize_timeout_seconds,
-            ),
+            limits=limites_imagen(settings),
             colaboradores=padron,
             colaborador_user=colaborador_user,
             rrhh_user=rrhh_user,

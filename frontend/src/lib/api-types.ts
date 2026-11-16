@@ -221,10 +221,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Descargar Original
-         * @description Documento tal como se subió. Siempre como descarga, nunca en línea.
+         * Descargar Imagen
+         * @description Imagen guardada (la re-codificación del servidor), siempre como descarga.
          */
-        get: operations["descargar_original_api_v1_descansos__descanso_id__archivo_get"];
+        get: operations["descargar_imagen_api_v1_descansos__descanso_id__archivo_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -306,7 +306,7 @@ export interface paths {
         };
         /**
          * Certificado De Ejemplo
-         * @description Genera un certificado ficticio con los datos del propio usuario.
+         * @description Genera un certificado ficticio (JPEG) con los datos del propio usuario.
          *
          *     Solo existe en modo demo: los datos de las cuentas de prueba son inventados.
          *     Variantes: `valido` (coincide con la ficha), `observado` (días que no cuadran
@@ -379,8 +379,16 @@ export interface components {
             max_bytes: number;
             /** Tipos Mime */
             tipos_mime: string[];
-            /** Max Paginas Pdf */
-            max_paginas_pdf: number;
+            /**
+             * Min Lado Px
+             * @description Lado corto mínimo de la imagen, en píxeles.
+             */
+            min_lado_px: number;
+            /**
+             * Max Lado Px
+             * @description Lado largo con el que se guarda la imagen. El navegador puede reducirla a este tamaño antes de subirla sin perder nada de lo que se conserva.
+             */
+            max_lado_px: number;
         };
         /** Colaborador */
         Colaborador: {
@@ -515,9 +523,15 @@ export interface components {
         };
         /** DescansoArchivo */
         DescansoArchivo: {
-            /** Mime */
+            /**
+             * Mime
+             * @description Formato de la imagen que se subió.
+             */
             mime: string;
-            /** Size Bytes */
+            /**
+             * Size Bytes
+             * @description Lo que ocupa la imagen guardada (re-codificada).
+             */
             size_bytes: number;
             /** Paginas */
             paginas: number;
@@ -1025,7 +1039,7 @@ export interface operations {
                 "multipart/form-data": {
                     /**
                      * Format: binary
-                     * @description Certificado médico: JPG, PNG, WebP o PDF.
+                     * @description Imagen del certificado médico: JPG, PNG o WebP.
                      */
                     archivo: string;
                     /** @description Si se omite se usa la sede del colaborador. */
@@ -1173,7 +1187,7 @@ export interface operations {
             };
         };
     };
-    descargar_original_api_v1_descansos__descanso_id__archivo_get: {
+    descargar_imagen_api_v1_descansos__descanso_id__archivo_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1190,7 +1204,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/octet-stream": unknown;
+                    "image/jpeg": unknown;
                 };
             };
             /** @description Validation Error */
@@ -1343,9 +1357,7 @@ export interface operations {
     };
     certificado_de_ejemplo_api_v1_demo_certificados__variante__get: {
         parameters: {
-            query?: {
-                formato?: "jpg" | "pdf";
-            };
+            query?: never;
             header?: never;
             path: {
                 variante: "valido" | "observado" | "otra-persona" | "citt";
@@ -1361,7 +1373,6 @@ export interface operations {
                 };
                 content: {
                     "image/jpeg": unknown;
-                    "application/pdf": unknown;
                 };
             };
             /** @description Validation Error */

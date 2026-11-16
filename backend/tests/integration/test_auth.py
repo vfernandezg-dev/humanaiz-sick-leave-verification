@@ -12,10 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from humanaiz.legal import TERMINOS_VERSION
 from humanaiz.models import AuditLog, User, UserSession
+from humanaiz.services import demo
 from tests.conftest import (
     DEMO_SETTINGS,
     PASSWORD,
     AppFactory,
+    SettingsFactory,
     create_user,
     credenciales,
     login,
@@ -131,11 +133,12 @@ async def test_credenciales_invalidas_no_distinguen_el_motivo(
 
 
 async def test_login_valida_formato_sin_reflejar_la_entrada(client: httpx.AsyncClient) -> None:
-    r = await client.post(LOGIN, json=credenciales("abc", "secreto-que-no-debe-volver"))
+    # Valores que no pueden aparecer por azar en el request_id (hexadecimal).
+    r = await client.post(LOGIN, json=credenciales("xyz", "secreto-que-no-debe-volver"))
     assert r.status_code == 422
     assert r.json()["error"]["code"] == "validacion"
     assert "secreto-que-no-debe-volver" not in r.text
-    assert "abc" not in r.text
+    assert "xyz" not in r.text
 
 
 async def test_limite_de_intentos_de_login(
@@ -158,6 +161,31 @@ async def test_limite_de_intentos_de_login(
         async with make_client(app, ip="198.51.100.7") as otra_ip:
             ok = await otra_ip.post(LOGIN, json=credenciales("12345678", PASSWORD))
             assert ok.status_code == 200
+
+
+async def test_rotar_ip_no_permite_probar_contrasenas_sin_fin(
+    app_factory: AppFactory, db_session: AsyncSession
+) -> None:
+    """Con VPN o proxies cada intento llega desde otra IP: el tope por DNI lo frena."""
+    await create_user(db_session, "12345678")
+    async with app_factory(rate_limit_login_dni="3/hour") as app:
+        codigos = []
+        for n in range(4):
+            async with make_client(app, ip=f"198.51.100.{n + 1}") as cliente:
+                r = await cliente.post(LOGIN, json=credenciales("12345678", "incorrecta"))
+                codigos.append(r.status_code)
+        assert codigos == [401, 401, 401, 429]
+
+
+async def test_el_tope_por_dni_no_aplica_a_las_cuentas_publicas_de_la_demo(
+    app_factory: AppFactory, make_settings: SettingsFactory, db_session: AsyncSession
+) -> None:
+    await demo.seed(db_session, make_settings(**DEMO_SETTINGS))
+    async with app_factory(**DEMO_SETTINGS, rate_limit_login_dni="1/hour") as app:
+        for n in range(3):
+            async with make_client(app, ip=f"198.51.100.{n + 1}") as cliente:
+                r = await cliente.post(LOGIN, json=credenciales("10000001", "demo-colaborador"))
+                assert r.status_code == 200, r.text
 
 
 async def test_cerrar_una_sesion_no_cierra_las_demas(
