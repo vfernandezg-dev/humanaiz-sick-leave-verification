@@ -24,15 +24,16 @@ from humanaiz.api import (
 from humanaiz.api import (
     demo as demo_api,
 )
-from humanaiz.config import Settings, enforce_boot_guard, get_settings
+from humanaiz.config import ConfigError, Settings, enforce_boot_guard, get_settings
 from humanaiz.db import Database
 from humanaiz.errors import install_error_handlers
 from humanaiz.logging import configure_logging
 from humanaiz.middleware import BodyLimit, RequestContextMiddleware
 from humanaiz.security.ratelimit import RateLimiter, general_rate_limit
 from humanaiz.services import demo
-from humanaiz.storage.local import LocalStorage
+from humanaiz.storage.factory import crear_storage
 from humanaiz.tasks import purge_loop
+from humanaiz.web import WebEstatica
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         db = Database(settings.database_url, pool_size=settings.db_pool_size)
-        storage = LocalStorage(settings.storage_local_path)
+        storage = crear_storage(settings, db)
         app.state.db = db
         app.state.storage = storage
         # Acota cuántos documentos se decodifican a la vez (memoria y CPU).
@@ -105,6 +106,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.limiter = RateLimiter(settings.rate_limit_storage_uri)
     app.add_middleware(RequestContextMiddleware, body_limit=make_body_limit(settings))
+    if settings.static_dir is not None:
+        if not (settings.static_dir / "index.html").is_file():
+            raise ConfigError(f"STATIC_DIR no contiene index.html: {settings.static_dir}")
+        # Un solo contenedor (Vercel): la API sirve también la web, con las
+        # cabeceras de seguridad que en docker compose pone Caddy.
+        app.add_middleware(WebEstatica, directorio=settings.static_dir)
     install_error_handlers(app)
 
     # Las sondas quedan fuera del límite general: las usa el orquestador.

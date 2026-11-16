@@ -17,8 +17,9 @@ import sys
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime
+from pathlib import Path
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select, text, update
 
 from humanaiz.config import ConfigError, Settings, get_settings
 from humanaiz.db import Database
@@ -33,7 +34,7 @@ from humanaiz.models import (
 )
 from humanaiz.security.passwords import hash_password, validate_new_password
 from humanaiz.services import audit, demo
-from humanaiz.storage.local import LocalStorage
+from humanaiz.storage.factory import crear_storage
 
 Handler = Callable[[argparse.Namespace, Settings], Awaitable[int]]
 
@@ -206,24 +207,19 @@ async def _import_colaboradores(args: argparse.Namespace, settings: Settings) ->
     return 0
 
 
-async def _seed_demo(args: argparse.Namespace, settings: Settings) -> int:
-    db = Database(settings.database_url, pool_size=1)
-    try:
-        async with db.session() as session:
-            if not settings.demo_mode:
-                if not args.if_enabled:
-                    return _error("DEMO_MODE no está activo.")
-                desactivadas = await demo.disable(session)
-                print(
-                    f"DEMO_MODE=false: {desactivadas} cuentas de prueba desactivadas."
-                    if desactivadas
-                    else "DEMO_MODE=false: no hay nada que sembrar."
-                )
-                return 0
-            storage = LocalStorage(settings.storage_local_path)
-            resultado = await demo.seed(session, settings, storage)
-    finally:
-        await db.dispose()
+async def _sembrar(db: Database, settings: Settings, *, if_enabled: bool) -> int:
+    async with db.session() as session:
+        if not settings.demo_mode:
+            if not if_enabled:
+                return _error("DEMO_MODE no está activo.")
+            desactivadas = await demo.disable(session)
+            print(
+                f"DEMO_MODE=false: {desactivadas} cuentas de prueba desactivadas."
+                if desactivadas
+                else "DEMO_MODE=false: no hay nada que sembrar."
+            )
+            return 0
+        resultado = await demo.seed(session, settings, crear_storage(settings, db))
     print(
         f"Demo sembrada: {resultado.usuarios} cuentas de prueba, "
         f"{resultado.colaboradores} colaboradores, "
@@ -232,12 +228,50 @@ async def _seed_demo(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
+async def _seed_demo(args: argparse.Namespace, settings: Settings) -> int:
+    # Dos conexiones: la siembra y, con almacenamiento en la base, las imágenes.
+    db = Database(settings.database_url, pool_size=2)
+    try:
+        return await _sembrar(db, settings, if_enabled=args.if_enabled)
+    finally:
+        await db.dispose()
+
+
+# Candado consultivo de PostgreSQL: en plataformas que arrancan varias
+# instancias a la vez, solo una migra y siembra; las demás esperan su turno.
+_PREPARE_LOCK_KEY = 0x48555052  # "HUPR"
+
+
+async def _prepare(args: argparse.Namespace, settings: Settings) -> int:
+    """Migraciones y siembra de la demo antes de servir (despliegue de un contenedor)."""
+    from alembic import command
+    from alembic.config import Config
+
+    ini = Path(args.alembic_ini)
+    if not ini.is_file():
+        return _error(f"no se encontró {ini}.")
+    db = Database(settings.database_url, pool_size=3)
+    try:
+        async with db.engine.connect() as candado:
+            await candado.execute(text("SELECT pg_advisory_lock(:k)"), {"k": _PREPARE_LOCK_KEY})
+            try:
+                # Alembic abre su propio bucle de eventos: va en otro hilo.
+                await asyncio.to_thread(command.upgrade, Config(str(ini)), "head")
+                return await _sembrar(db, settings, if_enabled=True)
+            finally:
+                await candado.execute(
+                    text("SELECT pg_advisory_unlock(:k)"), {"k": _PREPARE_LOCK_KEY}
+                )
+    finally:
+        await db.dispose()
+
+
 async def _purge(args: argparse.Namespace, settings: Settings) -> int:
     from humanaiz.tasks import purge_once
 
     db = Database(settings.database_url, pool_size=2)
     try:
-        r = await purge_once(db, LocalStorage(settings.storage_local_path), settings)
+        r = await purge_once(db, crear_storage(settings, db), settings)
     finally:
         await db.dispose()
     print(
@@ -254,7 +288,7 @@ async def _delete_descanso(args: argparse.Namespace, settings: Settings) -> int:
         descanso_id = uuid.UUID(args.id)
     except ValueError:
         return _error("el id debe ser un UUID (el que aparece en /descansos/<id>).")
-    db = Database(settings.database_url, pool_size=1)
+    db = Database(settings.database_url, pool_size=2)
     try:
         async with db.session() as session:
             prefijo = await session.scalar(
@@ -272,7 +306,7 @@ async def _delete_descanso(args: argparse.Namespace, settings: Settings) -> int:
                 detalle={"motivo": args.motivo},
             )
             await session.commit()
-        await LocalStorage(settings.storage_local_path).delete_prefix(prefijo)
+        await crear_storage(settings, db).delete_prefix(prefijo)
     finally:
         await db.dispose()
     print(f"Descanso {descanso_id} y su imagen eliminados.")
@@ -322,6 +356,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Con DEMO_MODE=false no falla: desactiva las cuentas de prueba que existan",
     )
     seed.set_defaults(handler=_seed_demo)
+
+    preparar = sub.add_parser(
+        "prepare",
+        help="Migra la base y siembra la demo (si está activa), con un candado entre instancias",
+    )
+    preparar.add_argument("--alembic-ini", default="alembic.ini", help="Ruta de alembic.ini")
+    preparar.set_defaults(handler=_prepare)
 
     purga = sub.add_parser("purge", help="Ejecuta una vez la purga de mantenimiento")
     purga.set_defaults(handler=_purge)

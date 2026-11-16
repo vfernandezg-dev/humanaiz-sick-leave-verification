@@ -68,7 +68,13 @@ class Settings(BaseSettings):
     session_absolute_ttl_seconds: int = Field(default=604_800, ge=300)
     cookie_secure: bool = True
 
+    # "local": un directorio (volumen privado). "database": la propia base, para
+    # plataformas sin disco persistente como Vercel.
+    storage_backend: Literal["local", "database"] = "local"
     storage_local_path: Path = Path("/data/uploads")
+    # Si se indica, la API sirve también la web compilada (una sola imagen, sin
+    # Caddy delante) con las mismas cabeceras de seguridad que el proxy.
+    static_dir: Path | None = None
     # Solo imágenes (JPEG, PNG, WebP). Si se sube por encima de 5 MB, hay que
     # ampliar también `max_size` en deploy/Caddyfile.
     max_upload_bytes: int = Field(default=5 * 1024 * 1024, ge=1024, le=20 * 1024 * 1024)

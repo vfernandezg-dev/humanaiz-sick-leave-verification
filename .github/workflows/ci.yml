@@ -90,3 +90,5 @@ jobs:
           POSTGRES_PASSWORD: solo-para-construir
           JWT_SECRET: solo-para-construir-0123456789abcdef0123456789abcdef
         run: docker compose build
+      - name: Construir la imagen única (Vercel)
+        run: docker build --tag humanaiz:unica .

@@ -159,6 +159,31 @@ almacenamiento local por uno compatible con S3 implementando `storage/base.py`. 
 el candado de la purga y el "un análisis a la vez por documento" ya funcionan entre réplicas
 porque viven en PostgreSQL.
 
+## Despliegue en un solo contenedor (Vercel)
+
+La demo pública, [humaniz.vfernandezg.dev](https://humaniz.vfernandezg.dev), corre en Vercel con
+PostgreSQL en Neon. Su infraestructura (proyecto, base, dominio y firewall) está en
+[`vfernandezg-infra/stacks/humanaiz`](https://github.com/vfernandezg-dev/vfernandezg-infra/tree/main/stacks/humanaiz).
+
+Para plataformas que ejecutan un único contenedor y no tienen disco persistente, el
+[`Dockerfile`](Dockerfile) de la raíz construye una imagen con la web y la API juntas:
+
+| Variable | En esta imagen | Qué cambia |
+|---|---|---|
+| `STATIC_DIR` | `/app/static` | La API sirve también la web, con las mismas cabeceras que Caddy (CSP, HSTS…) y oculta las rutas internas |
+| `STORAGE_BACKEND` | `database` | Las imágenes se guardan en PostgreSQL (tabla `archivos_guardados`). Con su tope (`STORAGE_MAX_MB`) y la caducidad de 24 h es razonable para la demo; para volúmenes reales conviene un almacenamiento de objetos |
+| `FORWARDED_ALLOW_IPS` | `*` | La plataforma reescribe `X-Forwarded-For` con la IP real y el contenedor no es accesible de otro modo |
+
+Al arrancar, `humanaiz prepare` aplica las migraciones y siembra la demo con un candado de
+PostgreSQL, por si arrancan varias instancias a la vez. Diferencias con docker compose:
+
+- Vercel corta los cuerpos de más de 4,5 MB: la imagen máxima baja a 4 MB (`MAX_UPLOAD_BYTES`).
+  El navegador reduce antes las fotos grandes, así que en la práctica no se nota.
+- Los límites de uso viven en memoria de cada instancia. Con poco tráfico hay una sola; el
+  firewall de Vercel añade un límite por IP en el borde.
+- La purga corre al arrancar cada instancia y cada 15 minutos mientras sigue activa: lo
+  caducado puede tardar algo más en borrarse si nadie visita la demo.
+
 ## Cómo funciona el análisis con IA (BYOK)
 
 1. El usuario abre **Clave de IA** y pega su clave: el proveedor se reconoce por su prefijo

@@ -263,3 +263,21 @@ class AuditLog(Base):
     entidad_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
     ip: Mapped[str | None] = mapped_column(INET, nullable=True)
     detalle: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+
+
+class ArchivoGuardado(Base):
+    """Imágenes guardadas en la propia base (STORAGE_BACKEND=database).
+
+    Para plataformas sin disco persistente (Vercel). Con almacenamiento local la
+    tabla queda vacía. Sin FK a los descansos, igual que los archivos en disco:
+    la purga barre los que quedan huérfanos.
+    """
+
+    __tablename__ = "archivos_guardados"
+
+    prefijo: Mapped[str] = mapped_column(String(64), primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(32), primary_key=True)
+    datos: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
