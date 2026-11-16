@@ -423,3 +423,9 @@ extraerse a su propio contenedor si la carga lo pide.
 - Los certificados médicos son datos sensibles (Ley N.º 29733). Antes de un uso real, define
   la base legal para que un analista envíe documentos de terceros a un proveedor de IA con una
   clave personal, y la política de conservación de documentos y respaldos.
+
+## Licencia
+
+[MIT](LICENSE) © 2025-2026 Valentin Fernandez. Las tipografías DejaVu incluidas en
+`backend/src/humanaiz/assets/fuentes/` conservan su propia licencia
+([`LICENSE-DejaVu.txt`](backend/src/humanaiz/assets/fuentes/LICENSE-DejaVu.txt)).
