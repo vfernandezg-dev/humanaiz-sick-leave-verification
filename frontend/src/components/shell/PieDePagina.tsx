@@ -10,13 +10,14 @@ export function PieDePagina() {
   const { data } = useConfig();
   const { t } = useI18n();
   const concurso = data?.proyecto.concurso;
+  const puesto = data?.proyecto.puesto;
   const contacto = enlaceContacto(data?.proyecto.contacto);
 
   return (
     <footer className="border-t">
       <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-6 text-xs text-muted-foreground sm:flex-row sm:items-start sm:justify-between">
         <p className="max-w-xl leading-5">
-          {t.shell.pie.texto(NOMBRE_APP, concurso)}
+          {t.shell.pie.texto(NOMBRE_APP, concurso, puesto)}
         </p>
         <nav aria-label={t.shell.pie.navegacion} className="flex flex-wrap gap-x-4 gap-y-1">
           <Link to="/como-funciona" className={enlace}>

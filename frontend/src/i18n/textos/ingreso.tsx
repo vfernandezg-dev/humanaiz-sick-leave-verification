@@ -1,12 +1,20 @@
 import type { ReactNode } from "react";
 import { definir } from "../definir";
+import { comun } from "./comun";
 
 /** El texto de aceptación lleva enlaces: se componen en la pantalla y llegan aquí ya armados. */
 type Enlaces = { terminos: (texto: string) => ReactNode; privacidad: (texto: string) => ReactNode };
 
 export const ingreso = definir({
   es: {
-    eyebrow: (concurso: string | null | undefined) => `Proyecto de concurso${concurso ? ` · ${concurso}` : ""}`,
+    eyebrow: (concurso: string | null | undefined, puesto: number | null | undefined) =>
+      [
+        puesto === 1 ? "Proyecto ganador" : puesto ? null : "Proyecto de concurso",
+        puesto ? comun.es.puesto(puesto) : null,
+        concurso,
+      ]
+        .filter(Boolean)
+        .join(" · "),
     titulo: "Verificación de descansos médicos asistida por inteligencia artificial",
     lead: "HumanAIz digitaliza la recepción de certificados de descanso médico, realiza una lectura automática con IA y deja la decisión final en manos de Recursos Humanos.",
     acceder: "Acceder a la demostración",
@@ -67,7 +75,14 @@ export const ingreso = definir({
     },
   },
   en: {
-    eyebrow: (concurso: string | null | undefined) => `Contest project${concurso ? ` · ${concurso}` : ""}`,
+    eyebrow: (concurso: string | null | undefined, puesto: number | null | undefined) =>
+      [
+        puesto === 1 ? "Winning project" : puesto ? null : "Contest project",
+        puesto ? comun.en.puesto(puesto) : null,
+        concurso,
+      ]
+        .filter(Boolean)
+        .join(" · "),
     titulo: "AI-assisted verification of sick leave certificates",
     lead: "HumanAIz digitizes the intake of sick leave medical certificates, runs an automatic AI reading and leaves the final decision in the hands of Human Resources.",
     acceder: "Access the demo",

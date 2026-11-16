@@ -65,3 +65,12 @@ def test_guardia_de_arranque_bloquea_en_produccion(monkeypatch: pytest.MonkeyPat
         enforce_boot_guard(produccion)
     # Fuera de producción solo se informa.
     assert "ANTHROPIC_API_KEY" in enforce_boot_guard(Settings(**BASE))
+
+
+def test_el_puesto_del_concurso_es_opcional_y_acepta_la_variable_vacia() -> None:
+
+    base = {"database_url": "postgresql+asyncpg://x:y@h/db", "jwt_secret": "s" * 40}
+    assert Settings(**base, concurso_puesto="").concurso_puesto is None
+    assert Settings(**base, concurso_puesto="1").concurso_puesto == 1
+    with pytest.raises(ValidationError):
+        Settings(**base, concurso_puesto="0")

@@ -1,5 +1,8 @@
 import { definir } from "../definir";
 
+const ORDINAL_EN = new Intl.PluralRules("en-US", { type: "ordinal" });
+const SUFIJO_EN: Record<string, string> = { one: "st", two: "nd", few: "rd", other: "th" };
+
 // Vocabulario común. "Estado" es la decisión de RRHH; "lectura con IA" es la
 // sugerencia automática: usan palabras distintas a propósito para no confundirlas.
 export const comun = definir({
@@ -27,6 +30,8 @@ export const comun = definir({
       otro: "Otro documento",
     },
     dias: (n: number) => `${n} ${n === 1 ? "día" : "días"}`,
+    // 1.er, 2.º, 3.er, 4.º... (Ortografía de la RAE).
+    puesto: (n: number) => `${n}.${n === 1 || n === 3 ? "er" : "º"} puesto`,
     explicacion: {
       muestra: "Es un ejemplo incluido en la demostración: puedes verlo, pero no modificarlo.",
       aprobado: (periodo: string | null) =>
@@ -74,6 +79,7 @@ export const comun = definir({
       otro: "Other document",
     },
     dias: (n: number) => `${n} ${n === 1 ? "day" : "days"}`,
+    puesto: (n: number) => `${n}${SUFIJO_EN[ORDINAL_EN.select(n)] ?? "th"} place`,
     explicacion: {
       muestra: "This is a sample included in the demo: you can view it, but not change it.",
       aprobado: (periodo: string | null) =>

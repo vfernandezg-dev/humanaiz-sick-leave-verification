@@ -1,4 +1,5 @@
 import { definir } from "../definir";
+import { comun } from "./comun";
 
 export const shell = definir({
   es: {
@@ -25,8 +26,8 @@ export const shell = definir({
       verTerminos: "Ver términos",
     },
     pie: {
-      texto: (app: string, concurso: string | null | undefined) =>
-        `${app} es un prototipo presentado a ${concurso ?? "un concurso"}. No es un servicio real ni tiene validez médica, legal o laboral.`,
+      texto: (app: string, concurso: string | null | undefined, puesto: number | null | undefined) =>
+        `${app} es un prototipo ${puesto ? `que obtuvo el ${comun.es.puesto(puesto)} en` : "presentado a"} ${concurso ?? "un concurso"}. No es un servicio real ni tiene validez médica, legal o laboral.`,
       navegacion: "Información del proyecto",
       comoFunciona: "Cómo funciona",
       terminos: "Términos",
@@ -64,8 +65,8 @@ export const shell = definir({
       verTerminos: "See terms",
     },
     pie: {
-      texto: (app: string, concurso: string | null | undefined) =>
-        `${app} is a prototype submitted to ${concurso ?? "a contest"}. It is not a real service and has no medical, legal or employment validity.`,
+      texto: (app: string, concurso: string | null | undefined, puesto: number | null | undefined) =>
+        `${app} is a prototype ${puesto ? `that won ${comun.en.puesto(puesto)} at` : "submitted to"} ${concurso ?? "a contest"}. It is not a real service and has no medical, legal or employment validity.`,
       navegacion: "Project information",
       comoFunciona: "How it works",
       terminos: "Terms",

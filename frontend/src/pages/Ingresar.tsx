@@ -11,6 +11,7 @@ import {
   FileUp,
   ShieldCheck,
   Sparkles,
+  Trophy,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -79,6 +80,7 @@ export default function Ingresar() {
 
   const demo = config?.demo.habilitado ? config.demo : null;
   const concurso = config?.proyecto.concurso;
+  const puesto = config?.proyecto.puesto;
   const mostrarFormulario = !demo || formularioAbierto;
 
   const entrar = async (dni: string, password: string, origen: string) => {
@@ -112,8 +114,9 @@ export default function Ingresar() {
       <div className="grid items-center gap-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)] lg:gap-16">
         <section className="space-y-8">
           <div className="space-y-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-              {g.eyebrow(concurso)}
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+              {puesto && <Trophy className="h-4 w-4 shrink-0" aria-hidden />}
+              {g.eyebrow(concurso, puesto)}
             </p>
             <h1 className="text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
               {g.titulo}

@@ -686,6 +686,11 @@ export interface components {
         ProyectoConfig: {
             /** Concurso */
             concurso: string | null;
+            /**
+             * Puesto
+             * @description Puesto obtenido en el concurso (1 = ganador).
+             */
+            puesto: number | null;
             /** Contacto */
             contacto: string | null;
             /** Version Terminos */
