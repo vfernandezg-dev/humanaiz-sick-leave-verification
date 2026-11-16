@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import re
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -74,6 +76,35 @@ class Extraccion(BaseModel):
     def _tipo_en_minusculas(cls, value: object) -> object:
         # Algún proveedor no garantiza la caja de los valores enumerados.
         return value.strip().lower() if isinstance(value, str) else value
+
+    @classmethod
+    def desde_json_flexible(cls, texto: str) -> Extraccion:
+        """Interpreta la salida de proveedores sin esquema estricto (solo "modo JSON").
+
+        Admite un bloque ```json alrededor, ignora claves que no son del esquema
+        y toma como null los campos opcionales que falten. Lo que sí exige el
+        esquema (tipos, valores enumerados, campos obligatorios) se valida igual.
+        Lanza ValidationError o ValueError si no se puede interpretar.
+        """
+        limpio = _BLOQUE_CODIGO.sub("", texto.strip()).strip()
+        datos = json.loads(limpio)
+        if not isinstance(datos, dict):
+            raise ValueError("la respuesta no es un objeto JSON")
+        campos = cls.model_fields
+        filtrado = {clave: valor for clave, valor in datos.items() if clave in campos}
+        for nombre, campo in campos.items():
+            if nombre not in filtrado and type(None) in get_args(campo.annotation):
+                filtrado[nombre] = None
+        return cls.model_validate(filtrado)
+
+
+_BLOQUE_CODIGO = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE)
+
+
+@dataclass(frozen=True, slots=True)
+class ModeloDisponible:
+    id: str
+    nombre: str
 
 
 @dataclass(frozen=True, slots=True)

@@ -20,12 +20,12 @@ export function ProtectedRoute({ children, role }: Props) {
   if (cargando) {
     return (
       <div className="flex min-h-screen items-center justify-center" role="status">
-        <p className="text-muted-foreground">Cargando…</p>
+        <p className="text-sm text-muted-foreground">Cargando…</p>
       </div>
     );
   }
   if (!usuario) {
-    return <Navigate to="/auth" replace state={{ desde: location.pathname }} />;
+    return <Navigate to="/ingresar" replace state={{ desde: location.pathname }} />;
   }
   if (role && usuario.role !== role) {
     return <Navigate to="/" replace />;

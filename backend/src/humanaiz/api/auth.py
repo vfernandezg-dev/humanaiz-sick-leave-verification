@@ -8,7 +8,8 @@ from fastapi.responses import JSONResponse
 from humanaiz.api.deps import ClientIp, LimiterDep, SessionDep, SettingsDep
 from humanaiz.api.schemas import LoginRequest, Sesion, Usuario, UsuarioColaborador
 from humanaiz.config import Settings
-from humanaiz.errors import AppError, error_body
+from humanaiz.errors import AppError, error_body, invalido
+from humanaiz.legal import TERMINOS_VERSION
 from humanaiz.security.deps import CurrentUser, Principal, principal_from_user, require_same_origin
 from humanaiz.security.ratelimit import client_ip, scale_limit
 from humanaiz.services import auth as auth_service
@@ -85,6 +86,18 @@ async def login(
     limiter: LimiterDep,
     ip: ClientIp,
 ) -> Sesion:
+    if not payload.acepta_terminos:
+        raise invalido(
+            "terminos_requeridos",
+            "Para entrar, acepta los términos y condiciones y la política de privacidad.",
+            campo="acepta_terminos",
+        )
+    if payload.terminos_version != TERMINOS_VERSION:
+        raise AppError(
+            409,
+            "terminos_desactualizados",
+            "Los términos se actualizaron. Recarga la página, revísalos y vuelve a aceptarlos.",
+        )
     bucket = client_ip(request)
     await limiter.check(
         scale_limit(settings.rate_limit_login, _FACTOR_LIMITE_IP), "login-ip", bucket
@@ -96,6 +109,7 @@ async def login(
         settings,
         dni=payload.dni,
         password=payload.password,
+        terminos_version=TERMINOS_VERSION,
         ip=ip,
         user_agent=request.headers.get("user-agent"),
         visitor_cookie=request.cookies.get(settings.visitor_cookie_name),

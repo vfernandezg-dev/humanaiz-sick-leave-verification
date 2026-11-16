@@ -4,12 +4,14 @@ import argparse
 import io
 from datetime import UTC, date, datetime
 
+import httpx
 import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from humanaiz import cli
 from humanaiz.config import ConfigError
+from humanaiz.legal import TERMINOS_VERSION
 from humanaiz.models import Colaborador, User, UserSession
 from humanaiz.services import demo
 from tests.conftest import (
@@ -18,6 +20,7 @@ from tests.conftest import (
     AppFactory,
     SettingsFactory,
     create_user,
+    credenciales,
     login,
     make_client,
 )
@@ -28,13 +31,29 @@ async def test_config_publica_sin_demo(app_factory: AppFactory) -> None:
         r = await client.get("/api/v1/config")
     assert r.status_code == 200
     cuerpo = r.json()
-    assert cuerpo["demo"] == {"habilitado": False, "aviso": None, "usuarios": []}
+    assert cuerpo["demo"] == {
+        "habilitado": False,
+        "aviso": None,
+        "usuarios": [],
+        "retencion_horas": 24,
+    }
     assert cuerpo["carga"]["max_bytes"] == 10 * 1024 * 1024
     assert "application/pdf" in cuerpo["carga"]["tipos_mime"]
     proveedores = {p["id"]: p for p in cuerpo["llm"]["proveedores"]}
-    assert set(proveedores) == {"anthropic", "openai", "gemini"}
+    assert set(proveedores) == {
+        "anthropic",
+        "openai",
+        "gemini",
+        "openrouter",
+        "xai",
+        "mistral",
+        "groq",
+    }
     for proveedor in proveedores.values():
-        assert sum(m["predeterminado"] for m in proveedor["modelos"]) == 1
+        assert sum(m["predeterminado"] for m in proveedor["modelos"]) <= 1
+        assert proveedor["url_claves"].startswith("https://")
+    assert proveedores["anthropic"]["prefijos_clave"] == ["sk-ant-"]
+    assert proveedores["groq"]["max_imagenes"] == 3
 
 
 async def test_config_respeta_proveedores_habilitados(app_factory: AppFactory) -> None:
@@ -90,7 +109,7 @@ async def test_sin_demo_no_arranca_con_cuentas_de_prueba_activas(
     assert await demo.disable(db_session) == 1
     assert await demo.disable(db_session) == 0
     async with app_factory() as app, make_client(app) as client:
-        r = await client.post("/api/v1/auth/login", json={"dni": "10000001", "password": PASSWORD})
+        r = await client.post("/api/v1/auth/login", json=credenciales("10000001", PASSWORD))
         assert r.status_code == 401
 
 
@@ -223,3 +242,90 @@ async def test_muestras_de_la_demo_con_analisis_en_los_tres_estados(
         await login(cliente, "10000001", "demo-colaborador")
         mios = (await cliente.get("/api/v1/me/descansos")).json()
         assert [d["estado"] for d in mios["items"]] == ["Aprobado"]
+
+
+async def test_config_publica_expone_los_datos_del_proyecto(app_factory: AppFactory) -> None:
+    async with app_factory() as app, make_client(app) as client:
+        sin_datos = (await client.get("/api/v1/config")).json()["proyecto"]
+    assert sin_datos == {
+        "concurso": None,
+        "contacto": None,
+        "version_terminos": TERMINOS_VERSION,
+        "retencion_registros_dias": 30,
+    }
+    overrides = {
+        "concurso_nombre": "  Hackatón de Prueba 2026 ",
+        "contacto_proyecto": "equipo@example.com",
+        "audit_retention_days": 7,
+        "demo_ttl_hours": 12,
+    }
+    async with app_factory(**overrides) as app, make_client(app) as client:
+        cuerpo = (await client.get("/api/v1/config")).json()
+    assert cuerpo["proyecto"]["concurso"] == "Hackatón de Prueba 2026"
+    assert cuerpo["proyecto"]["contacto"] == "equipo@example.com"
+    assert cuerpo["proyecto"]["retencion_registros_dias"] == 7
+    assert cuerpo["demo"]["retencion_horas"] == 12
+
+
+async def test_purga_borra_la_bitacora_antigua(
+    app_factory: AppFactory, db_session: AsyncSession
+) -> None:
+    from datetime import timedelta
+
+    from humanaiz.models import AuditLog
+    from humanaiz.tasks import purge_once
+
+    ahora = datetime.now(UTC)
+    db_session.add_all(
+        [
+            AuditLog(accion="login", at=ahora - timedelta(days=40), ip="203.0.113.1"),
+            AuditLog(accion="login", at=ahora - timedelta(days=2), ip="203.0.113.2"),
+        ]
+    )
+    await db_session.commit()
+    async with app_factory(audit_retention_days=30) as app:
+        resultado = await purge_once(app.state.db, app.state.storage, app.state.settings)
+    assert resultado.registros_auditoria == 1
+    restantes = (await db_session.scalars(select(AuditLog.ip))).all()
+    assert [str(ip) for ip in restantes] == ["203.0.113.2"]
+
+
+async def test_certificados_de_ejemplo_para_probar_la_lectura(
+    app_factory: AppFactory, make_settings: SettingsFactory, db_session: AsyncSession
+) -> None:
+    import io
+
+    from PIL import Image
+
+    await demo.seed(db_session, make_settings(**DEMO_SETTINGS))
+    async with app_factory(**DEMO_SETTINGS) as app, make_client(app) as cliente:
+        assert (await cliente.get("/api/v1/demo/certificados/valido")).status_code == 401
+        await login(cliente, "10000001", "demo-colaborador")
+        for variante in ("valido", "observado", "otra-persona", "citt"):
+            r = await cliente.get(f"/api/v1/demo/certificados/{variante}")
+            assert r.status_code == 200, (variante, r.text)
+            assert r.headers["content-type"] == "image/jpeg"
+            assert r.headers["content-disposition"].startswith("attachment;")
+            assert "sandbox" in r.headers["content-security-policy"]
+            imagen = Image.open(io.BytesIO(r.content))
+            assert imagen.size == (1240, 1754)
+        pdf = await cliente.get("/api/v1/demo/certificados/valido", params={"formato": "pdf"})
+        assert pdf.headers["content-type"] == "application/pdf"
+        assert pdf.content.startswith(b"%PDF-")
+        assert (await cliente.get("/api/v1/demo/certificados/inventado")).status_code == 422
+
+        # El certificado generado se puede subir: es un documento válido para la aplicación.
+        subida = await cliente.post(
+            "/api/v1/descansos",
+            files={"archivo": ("ejemplo.pdf", pdf.content, "application/pdf")},
+        )
+        assert subida.status_code == 201, subida.text
+
+
+async def test_sin_modo_demo_no_hay_certificados_de_ejemplo(
+    client: httpx.AsyncClient, db_session: AsyncSession
+) -> None:
+    await create_user(db_session, "12345678")
+    await login(client, "12345678")
+    r = await client.get("/api/v1/demo/certificados/valido")
+    assert (r.status_code, r.json()["error"]["code"]) == (404, "no_encontrado")

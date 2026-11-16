@@ -226,8 +226,8 @@ class AnalisisDescanso(Base):
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
     proveedor: Mapped[str] = mapped_column(String(20), nullable=False)
-    modelo: Mapped[str] = mapped_column(String(80), nullable=False)
-    modelo_efectivo: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    modelo: Mapped[str] = mapped_column(String(120), nullable=False)
+    modelo_efectivo: Mapped[str | None] = mapped_column(String(120), nullable=True)
     estado: Mapped[str] = mapped_column(String(12), nullable=False)
     error_code: Mapped[str | None] = mapped_column(String(40), nullable=True)
     extraccion: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)

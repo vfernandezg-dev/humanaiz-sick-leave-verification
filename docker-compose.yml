@@ -8,6 +8,9 @@ x-api-env: &api-env
   PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?define PUBLIC_ORIGIN en .env}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   TZ_NEGOCIO: ${TZ_NEGOCIO:-America/Lima}
+  CONCURSO_NOMBRE: ${CONCURSO_NOMBRE:-}
+  CONTACTO_PROYECTO: ${CONTACTO_PROYECTO:-}
+  AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS:-30}
   ENABLE_DOCS: "false"
   # Usa una contraseña sin caracteres reservados de URL (p. ej. `openssl rand -hex 24`).
   DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-humanaiz}:${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD en .env}@db:5432/${POSTGRES_DB:-humanaiz}
@@ -21,7 +24,7 @@ x-api-env: &api-env
   MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-10485760}
   MAX_PDF_PAGES: ${MAX_PDF_PAGES:-5}
   MIN_FREE_DISK_MB: ${MIN_FREE_DISK_MB:-500}
-  LLM_ENABLED_PROVIDERS: ${LLM_ENABLED_PROVIDERS:-anthropic,openai,gemini}
+  LLM_ENABLED_PROVIDERS: ${LLM_ENABLED_PROVIDERS:-anthropic,openai,gemini,openrouter,xai,mistral,groq}
   LLM_REQUEST_TIMEOUT_SECONDS: ${LLM_REQUEST_TIMEOUT_SECONDS:-90}
   ANALYSIS_DEADLINE_SECONDS: ${ANALYSIS_DEADLINE_SECONDS:-100}
   ANALYSIS_MAX_CONCURRENCY: ${ANALYSIS_MAX_CONCURRENCY:-8}
@@ -29,6 +32,7 @@ x-api-env: &api-env
   RATE_LIMIT_LOGIN: ${RATE_LIMIT_LOGIN:-5/minute}
   RATE_LIMIT_UPLOAD: ${RATE_LIMIT_UPLOAD:-10/hour}
   RATE_LIMIT_ANALYSIS: ${RATE_LIMIT_ANALYSIS:-30/hour}
+  RATE_LIMIT_MODELOS: ${RATE_LIMIT_MODELOS:-30/hour}
   DEMO_MODE: ${DEMO_MODE:-false}
   DEMO_TTL_HOURS: ${DEMO_TTL_HOURS:-24}
   DEMO_SESSION_TTL_SECONDS: ${DEMO_SESSION_TTL_SECONDS:-7200}
@@ -39,6 +43,13 @@ x-api-env: &api-env
   DEMO_RRHH_PASSWORD: ${DEMO_RRHH_PASSWORD:-}
   # Solo se confía en X-Forwarded-For si la petición viene del proxy (red edge).
   FORWARDED_ALLOW_IPS: 172.28.0.0/24
+
+# Rotación de logs: sin ella el disco crece sin límite.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 x-hardening: &hardening
   security_opt:
@@ -63,6 +74,7 @@ services:
       retries: 20
     networks:
       - backend
+    logging: *logging
     security_opt:
       - no-new-privileges:true
 
@@ -82,6 +94,7 @@ services:
         condition: service_healthy
     networks:
       - backend
+    logging: *logging
     <<: *hardening
 
   api:
@@ -110,6 +123,7 @@ services:
     memswap_limit: 1g
     pids_limit: 256
     stop_grace_period: 140s
+    logging: *logging
     <<: *hardening
 
   web:
@@ -135,6 +149,7 @@ services:
         condition: service_healthy
     networks:
       - edge
+    logging: *logging
     read_only: true
     tmpfs:
       - /tmp:size=16m

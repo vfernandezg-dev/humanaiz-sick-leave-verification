@@ -6,7 +6,7 @@ export interface AuthContextValue {
   /** true mientras se comprueba si ya existe una sesión al cargar la página. */
   cargando: boolean;
   esRRHH: boolean;
-  iniciarSesion: (dni: string, password: string) => Promise<void>;
+  iniciarSesion: (dni: string, password: string, terminosVersion: string) => Promise<void>;
   cerrarSesion: () => Promise<void>;
 }
 

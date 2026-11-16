@@ -26,6 +26,7 @@ _DETALLE_PERMITIDO = frozenset(
         "mime",
         "cantidad",
         "pagina",
+        "terminos_version",
     }
 )
 

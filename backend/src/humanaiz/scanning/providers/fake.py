@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 import httpx2
 from pydantic import SecretStr
 
-from humanaiz.scanning.types import Extraccion, ExtractionOutcome
+from humanaiz.scanning.types import Extraccion, ExtractionOutcome, ModeloDisponible
 
 
 @dataclass
@@ -25,6 +25,9 @@ class FakeAdapter:
     continuar: asyncio.Event | None = None
     iniciada: asyncio.Event = field(default_factory=asyncio.Event)
     llamadas: list[dict[str, object]] = field(default_factory=list)
+    modelos: list[ModeloDisponible] = field(
+        default_factory=lambda: [ModeloDisponible("fake-1", "Simulado 1")]
+    )
 
     async def extract(
         self,
@@ -53,3 +56,15 @@ class FakeAdapter:
             modelo_efectivo=model,
             request_id="req_fake_123",
         )
+
+    async def listar_modelos(
+        self,
+        *,
+        api_key: SecretStr,
+        timeout_s: float,
+        transport: httpx2.AsyncBaseTransport | None = None,
+    ) -> list[ModeloDisponible]:
+        self.llamadas.append({"listar": True, "con_clave": bool(api_key.get_secret_value())})
+        if self.error is not None:
+            raise self.error
+        return list(self.modelos)

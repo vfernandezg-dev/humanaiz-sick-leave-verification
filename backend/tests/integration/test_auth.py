@@ -10,8 +10,17 @@ from fastapi import FastAPI
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from humanaiz.legal import TERMINOS_VERSION
 from humanaiz.models import AuditLog, User, UserSession
-from tests.conftest import DEMO_SETTINGS, PASSWORD, AppFactory, create_user, login, make_client
+from tests.conftest import (
+    DEMO_SETTINGS,
+    PASSWORD,
+    AppFactory,
+    create_user,
+    credenciales,
+    login,
+    make_client,
+)
 
 LOGIN = "/api/v1/auth/login"
 REFRESH = "/api/v1/auth/refresh"
@@ -24,7 +33,7 @@ async def test_login_devuelve_sesion_y_cookie_segura(
     client: httpx.AsyncClient, db_session: AsyncSession
 ) -> None:
     await create_user(db_session, "12345678", role="analista_rrhh")
-    r = await client.post(LOGIN, json={"dni": "12345678", "password": PASSWORD})
+    r = await client.post(LOGIN, json=credenciales("12345678", PASSWORD))
     assert r.status_code == 200
     body = r.json()
     assert body["token_type"] == "bearer"
@@ -81,7 +90,7 @@ async def test_sin_origin_correcto_se_rechaza(
     app: FastAPI, client: httpx.AsyncClient, db_session: AsyncSession
 ) -> None:
     await create_user(db_session, "12345678")
-    cuerpo = {"dni": "12345678", "password": PASSWORD}
+    cuerpo = credenciales("12345678", PASSWORD)
     for origen in ("https://malicioso.example", "https://sub.humanaiz.test", None):
         cabeceras = {"Origin": origen} if origen else {}
         async with httpx.AsyncClient(
@@ -100,12 +109,12 @@ async def test_credenciales_invalidas_no_distinguen_el_motivo(
     await create_user(db_session, "87654321", is_active=False)
 
     inicio = time.perf_counter()
-    mala = await client.post(LOGIN, json={"dni": "12345678", "password": "incorrecta"})
+    mala = await client.post(LOGIN, json=credenciales("12345678", "incorrecta"))
     t_mala = time.perf_counter() - inicio
     inicio = time.perf_counter()
-    inexistente = await client.post(LOGIN, json={"dni": "00000000", "password": "incorrecta"})
+    inexistente = await client.post(LOGIN, json=credenciales("00000000", "incorrecta"))
     t_inexistente = time.perf_counter() - inicio
-    inactiva = await client.post(LOGIN, json={"dni": "87654321", "password": PASSWORD})
+    inactiva = await client.post(LOGIN, json=credenciales("87654321", PASSWORD))
 
     for r in (mala, inexistente, inactiva):
         assert r.status_code == 401
@@ -122,7 +131,7 @@ async def test_credenciales_invalidas_no_distinguen_el_motivo(
 
 
 async def test_login_valida_formato_sin_reflejar_la_entrada(client: httpx.AsyncClient) -> None:
-    r = await client.post(LOGIN, json={"dni": "abc", "password": "secreto-que-no-debe-volver"})
+    r = await client.post(LOGIN, json=credenciales("abc", "secreto-que-no-debe-volver"))
     assert r.status_code == 422
     assert r.json()["error"]["code"] == "validacion"
     assert "secreto-que-no-debe-volver" not in r.text
@@ -134,7 +143,7 @@ async def test_limite_de_intentos_de_login(
 ) -> None:
     await create_user(db_session, "12345678")
     async with app_factory(rate_limit_login="5/minute") as app, make_client(app) as client:
-        cuerpo = {"dni": "12345678", "password": "incorrecta"}
+        cuerpo = credenciales("12345678", "incorrecta")
         codigos = [(await client.post(LOGIN, json=cuerpo)).status_code for _ in range(5)]
         assert codigos == [401] * 5
         bloqueado = await client.post(LOGIN, json=cuerpo)
@@ -143,11 +152,11 @@ async def test_limite_de_intentos_de_login(
         assert int(bloqueado.headers["retry-after"]) >= 1
         # Ni la contraseña correcta pasa mientras dura el bloqueo...
         assert (
-            await client.post(LOGIN, json={"dni": "12345678", "password": PASSWORD})
+            await client.post(LOGIN, json=credenciales("12345678", PASSWORD))
         ).status_code == 429
         # ...pero otra IP con el mismo DNI no queda bloqueada: no se bloquea la cuenta.
         async with make_client(app, ip="198.51.100.7") as otra_ip:
-            ok = await otra_ip.post(LOGIN, json={"dni": "12345678", "password": PASSWORD})
+            ok = await otra_ip.post(LOGIN, json=credenciales("12345678", PASSWORD))
             assert ok.status_code == 200
 
 
@@ -239,3 +248,32 @@ async def test_demo_asigna_y_conserva_el_visitante(
         async with make_client(app) as otro:
             await login(otro, "10000001")
             assert otro.cookies["__Host-hz_visitor"] != visitante
+
+
+async def test_login_exige_aceptar_los_terminos_vigentes(
+    client: httpx.AsyncClient, db_session: AsyncSession
+) -> None:
+    await create_user(db_session, "12345678")
+    base = credenciales("12345678")
+
+    sin_aceptar = await client.post(LOGIN, json=base | {"acepta_terminos": False})
+    assert (sin_aceptar.status_code, sin_aceptar.json()["error"]["code"]) == (
+        422,
+        "terminos_requeridos",
+    )
+    omitido = await client.post(LOGIN, json={"dni": "12345678", "password": PASSWORD})
+    assert omitido.json()["error"]["code"] == "terminos_requeridos"
+
+    antigua = await client.post(LOGIN, json=base | {"terminos_version": "2000-01-01"})
+    assert (antigua.status_code, antigua.json()["error"]["code"]) == (
+        409,
+        "terminos_desactualizados",
+    )
+    for r in (sin_aceptar, omitido, antigua):
+        assert "set-cookie" not in r.headers
+
+    ok = await client.post(LOGIN, json=base)
+    assert ok.status_code == 200
+    registro = await db_session.scalar(select(AuditLog).where(AuditLog.accion == "login"))
+    assert registro is not None
+    assert registro.detalle == {"terminos_version": TERMINOS_VERSION}

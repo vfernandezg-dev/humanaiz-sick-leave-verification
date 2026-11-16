@@ -371,7 +371,11 @@ async def test_fallo_inesperado_del_adaptador_no_arrastra_la_excepcion(
 def test_catalogo_y_registro_estan_alineados() -> None:
     assert {p.id for p in PROVIDERS} == set(REGISTRY)
     for proveedor in PROVIDERS:
-        assert sum(m.predeterminado for m in proveedor.modelos) == 1
-        assert proveedor.permite(proveedor.modelo_predeterminado())
-        assert not proveedor.permite("modelo-inventado")
+        assert sum(m.predeterminado for m in proveedor.modelos) <= 1
+        for modelo in proveedor.modelos:
+            assert proveedor.permite(modelo.id), (proveedor.id, modelo.id)
         assert len({m.id for m in proveedor.modelos}) == len(proveedor.modelos)
+        for invalido in ("", " ", "a b", "../../v1/keys", "x/../../y", "<script>", "a\nb"):
+            assert not proveedor.permite(invalido), (proveedor.id, invalido)
+        if proveedor.familia == "compatible":
+            assert proveedor.base_url and proveedor.base_url.startswith("https://")

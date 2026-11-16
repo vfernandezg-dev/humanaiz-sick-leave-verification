@@ -17,6 +17,8 @@ export type PaginaDescansos = Schemas["Pagina_Descanso_"];
 export type PaginaColaboradores = Schemas["Pagina_Colaborador_"];
 export type DecisionRequest = Schemas["DecisionRequest"];
 export type AnalisisRequest = Schemas["AnalisisRequest"];
+export type ModelosDisponibles = Schemas["ModelosDisponibles"];
+export type ModeloDisponible = Schemas["ModeloDisponibleSalida"];
 
 export type Role = Usuario["role"];
 export type EstadoDescanso = Descanso["estado"];

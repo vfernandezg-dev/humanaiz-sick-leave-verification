@@ -3,6 +3,7 @@
 // día anterior: por eso aquí se construyen siempre en hora local.
 
 const FECHA = new Intl.DateTimeFormat("es-PE", { day: "2-digit", month: "2-digit", year: "numeric" });
+const DIA_MES = new Intl.DateTimeFormat("es-PE", { day: "numeric", month: "short" });
 const FECHA_HORA = new Intl.DateTimeFormat("es-PE", {
   day: "2-digit",
   month: "2-digit",
@@ -29,6 +30,13 @@ export function formatoFechaHora(iso: string | null | undefined): string {
   if (!iso) return "—";
   const fecha = new Date(iso);
   return Number.isNaN(fecha.getTime()) ? "—" : FECHA_HORA.format(fecha);
+}
+
+/** Marca de tiempo ISO -> "15 nov." (para listados). */
+export function formatoFechaCorta(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const fecha = new Date(iso);
+  return Number.isNaN(fecha.getTime()) ? "—" : DIA_MES.format(fecha);
 }
 
 /** Días de calendario entre dos fechas, contando ambos extremos. */

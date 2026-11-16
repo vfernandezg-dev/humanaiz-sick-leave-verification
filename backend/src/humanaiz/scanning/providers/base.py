@@ -20,9 +20,11 @@ from typing import Protocol
 import httpx2
 from pydantic import SecretStr
 
-from humanaiz.scanning.types import ExtractionOutcome
+from humanaiz.scanning.types import ExtractionOutcome, ModeloDisponible
 
 MAX_OUTPUT_TOKENS = 16_000
+# Tope de modelos que se devuelven al listar los de una cuenta.
+MAX_MODELOS_LISTADOS = 300
 _CONNECT_TIMEOUT_S = 10.0
 
 
@@ -42,6 +44,16 @@ class ProviderAdapter(Protocol):
 
         `transport` solo se usa en pruebas, para simular al proveedor.
         """
+        ...
+
+    async def listar_modelos(
+        self,
+        *,
+        api_key: SecretStr,
+        timeout_s: float,
+        transport: httpx2.AsyncBaseTransport | None = None,
+    ) -> list[ModeloDisponible]:
+        """Modelos utilizables con esta clave. Si la clave no vale, lanza ClaveInvalida."""
         ...
 
 

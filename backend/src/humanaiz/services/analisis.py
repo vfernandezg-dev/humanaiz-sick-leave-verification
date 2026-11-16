@@ -85,13 +85,19 @@ _ERRORES_LLM: dict[str, tuple[int, str]] = {
     ),
     "llm_solicitud_rechazada": (
         502,
-        "El proveedor de IA rechazó la solicitud. Prueba con otro modelo.",
+        "El proveedor de IA rechazó la solicitud. Comprueba que el modelo acepte imágenes "
+        "o prueba con otro.",
+    ),
+    "llm_documento_no_soportado": (
+        422,
+        "Este proveedor no admite documentos con tantas páginas. Prueba con otro proveedor.",
     ),
 }
 _ERROR_GENERICO = (502, "No se pudo completar el análisis con el proveedor de IA.")
 
 
-def _to_app_error(exc: ProviderError) -> AppError:
+def to_app_error(exc: ProviderError) -> AppError:
+    """Error del proveedor de IA -> respuesta de la API con mensaje para el usuario."""
     status, mensaje = _ERRORES_LLM.get(exc.code, _ERROR_GENERICO)
     headers = None
     if exc.code == "llm_limite_proveedor":
@@ -112,11 +118,21 @@ def resolver_modelo(settings: Settings, proveedor: str, modelo: str | None) -> s
         raise invalido(
             "llm_proveedor_no_soportado", "Ese proveedor de IA no está disponible.", "proveedor"
         )
-    if modelo is None:
-        return info.modelo_predeterminado()
+    if modelo is None or not modelo.strip():
+        predeterminado = info.modelo_predeterminado()
+        if predeterminado is None:
+            raise invalido(
+                "llm_modelo_requerido",
+                "Elige el modelo que quieres usar con este proveedor.",
+                "modelo",
+            )
+        return predeterminado
+    modelo = info.normalizar_modelo(modelo)
     if not info.permite(modelo):
         raise invalido(
-            "llm_modelo_no_permitido", "Ese modelo no está disponible para el análisis.", "modelo"
+            "llm_modelo_no_permitido",
+            "Ese nombre de modelo no es válido para este proveedor.",
+            "modelo",
         )
     return modelo
 
@@ -300,7 +316,7 @@ async def _persistir(
         fila.extraccion = outcome.extraccion.model_dump()
         fila.resultado = resultado.to_dict()
         fila.estado_documento = resultado.estado_documento
-        fila.modelo_efectivo = (outcome.modelo_efectivo or "")[:80] or None
+        fila.modelo_efectivo = (outcome.modelo_efectivo or "")[:120] or None
         fila.tokens_entrada = outcome.tokens_entrada
         fila.tokens_salida = outcome.tokens_salida
         fila.proveedor_request_id = (outcome.request_id or "")[:100] or None
@@ -387,7 +403,7 @@ async def _llamar_y_persistir(
             },
         )
         await _marcar_fallido(db, reserva, principal, error_code=error.code, ip=ip)
-        raise _to_app_error(error)
+        raise to_app_error(error)
     finally:
         slots.release()
 

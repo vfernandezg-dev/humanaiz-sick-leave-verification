@@ -86,5 +86,11 @@ class RespuestaInvalida(ProviderError):
     code = "llm_respuesta_invalida"
 
 
+class DocumentoNoSoportado(ProviderError):
+    """El modelo no admite el documento tal como es (p. ej. demasiadas páginas)."""
+
+    code = "llm_documento_no_soportado"
+
+
 class SolicitudRechazada(ProviderError):
     code = "llm_solicitud_rechazada"

@@ -260,3 +260,25 @@ def test_esquema_de_extraccion_es_estricto() -> None:
     esquema = Extraccion.model_json_schema()
     assert esquema["additionalProperties"] is False
     assert set(esquema["required"]) == set(esquema["properties"])
+
+
+@pytest.mark.parametrize(
+    ("variante", "estado"),
+    [
+        ("valido", "Aprobado"),
+        ("citt", "Aprobado"),
+        ("observado", "Observado"),
+        ("otra-persona", "Rechazado"),
+    ],
+)
+def test_los_certificados_de_ejemplo_producen_el_resultado_que_anuncian(
+    variante: str, estado: str
+) -> None:
+    from humanaiz.services import certificados
+
+    base = certificados.base_para(
+        nombres="Carlos Daniel", apellidos="Ramírez Soto", dni="45678912", hoy=HOY
+    )
+    datos = certificados.variante(variante, base)  # type: ignore[arg-type]
+    r = evaluate(Extraccion(**certificados.extraccion_de(datos)), contexto())
+    assert r.estado_documento == estado

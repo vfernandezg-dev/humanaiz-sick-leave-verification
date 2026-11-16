@@ -14,9 +14,9 @@ const EXTENSION: Record<string, string> = {
 };
 
 /**
- * Muestra las páginas del certificado. Las imágenes se piden con el token de
- * sesión y se muestran desde un blob: un `<img src>` normal no puede enviar la
- * cabecera Authorization y los documentos no tienen URL pública.
+ * Páginas del certificado. Se piden con el token de sesión y se muestran desde
+ * un blob: un `<img src>` normal no puede enviar la cabecera Authorization, y
+ * los documentos no tienen URL pública.
  */
 export function CertificadoViewer({ descanso }: { descanso: Descanso }) {
   const { toast } = useToast();
@@ -43,7 +43,6 @@ export function CertificadoViewer({ descanso }: { descanso: Descanso }) {
       });
     return () => {
       control.abort();
-      // Libera la imagen de la memoria del navegador al cambiar de página o salir.
       if (creada) URL.revokeObjectURL(creada);
     };
   }, [descanso.id, pagina]);
@@ -52,8 +51,8 @@ export function CertificadoViewer({ descanso }: { descanso: Descanso }) {
     setDescargando(true);
     try {
       const blob = await api.original(descanso.id);
-      const enlace = document.createElement("a");
       const temporal = URL.createObjectURL(blob);
+      const enlace = document.createElement("a");
       enlace.href = temporal;
       enlace.download = `certificado-${descanso.id.slice(0, 8)}.${EXTENSION[descanso.archivo.mime] ?? "bin"}`;
       enlace.click();
@@ -70,8 +69,8 @@ export function CertificadoViewer({ descanso }: { descanso: Descanso }) {
   };
 
   return (
-    <div className="space-y-2">
-      <div className="flex min-h-48 max-w-md items-center justify-center overflow-hidden rounded-lg border bg-muted/30">
+    <figure className="space-y-2">
+      <div className="flex min-h-64 items-center justify-center overflow-hidden rounded-lg border bg-muted/40">
         {fallo ? (
           <div className="flex flex-col items-center gap-2 p-6 text-sm text-muted-foreground">
             <FileWarning className="h-6 w-6" aria-hidden />
@@ -81,17 +80,17 @@ export function CertificadoViewer({ descanso }: { descanso: Descanso }) {
           <img
             src={url}
             alt={`Certificado médico, página ${pagina} de ${total}`}
-            className="max-h-[32rem] w-full object-contain"
+            className="max-h-[36rem] w-full object-contain"
           />
         ) : (
-          <Skeleton className="h-72 w-full" />
+          <Skeleton className="h-80 w-full rounded-none" />
         )}
       </div>
-      <div className="flex max-w-md flex-wrap items-center justify-between gap-2">
+      <figcaption className="flex flex-wrap items-center justify-between gap-2">
         {total > 1 ? (
           <div className="flex items-center gap-1">
             <Button
-              variant="outline"
+              variant="ghost"
               size="icon"
               className="h-8 w-8"
               onClick={() => setPagina((p) => Math.max(1, p - 1))}
@@ -100,11 +99,11 @@ export function CertificadoViewer({ descanso }: { descanso: Descanso }) {
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="px-2 text-sm text-muted-foreground">
+            <span className="px-1 text-xs text-muted-foreground">
               Página {pagina} de {total}
             </span>
             <Button
-              variant="outline"
+              variant="ghost"
               size="icon"
               className="h-8 w-8"
               onClick={() => setPagina((p) => Math.min(total, p + 1))}
@@ -115,13 +114,13 @@ export function CertificadoViewer({ descanso }: { descanso: Descanso }) {
             </Button>
           </div>
         ) : (
-          <span />
+          <span className="text-xs text-muted-foreground">Vista optimizada, sin metadatos</span>
         )}
         <Button variant="ghost" size="sm" className="gap-2" onClick={descargar} disabled={descargando}>
-          <Download className="h-4 w-4" />
+          <Download className="h-4 w-4" aria-hidden />
           {descargando ? "Descargando…" : "Descargar original"}
         </Button>
-      </div>
-    </div>
+      </figcaption>
+    </figure>
   );
 }

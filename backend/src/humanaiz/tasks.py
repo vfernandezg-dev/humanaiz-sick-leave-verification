@@ -1,4 +1,5 @@
-"""Mantenimiento periódico: purga de la demo, sesiones caducadas y archivos huérfanos."""
+"""Mantenimiento periódico: purga de la demo, sesiones caducadas, bitácora antigua y
+archivos huérfanos."""
 
 from __future__ import annotations
 
@@ -11,7 +12,7 @@ from sqlalchemy import delete, or_, select, text, update
 
 from humanaiz.config import Settings
 from humanaiz.db import Database
-from humanaiz.models import AnalisisDescanso, DescansoMedico, UserSession
+from humanaiz.models import AnalisisDescanso, AuditLog, DescansoMedico, UserSession
 from humanaiz.services import audit
 from humanaiz.services.descansos import stale_before
 from humanaiz.storage.base import Storage
@@ -31,10 +32,17 @@ class ResultadoPurga:
     sesiones: int
     analisis_abandonados: int
     archivos_huerfanos: int
+    registros_auditoria: int = 0
 
     def hubo_cambios(self) -> bool:
         return any(
-            (self.descansos_demo, self.sesiones, self.analisis_abandonados, self.archivos_huerfanos)
+            (
+                self.descansos_demo,
+                self.sesiones,
+                self.analisis_abandonados,
+                self.archivos_huerfanos,
+                self.registros_auditoria,
+            )
         )
 
 
@@ -80,6 +88,15 @@ async def purge_once(db: Database, storage: Storage, settings: Settings) -> Resu
                 .values(estado="fallido", error_code="abandonado", finished_at=ahora)
             )
         ).rowcount
+        # La bitácora guarda IPs: se conserva solo el tiempo indicado en la
+        # política de privacidad (AUDIT_RETENTION_DAYS).
+        registros = (
+            await session.execute(
+                delete(AuditLog).where(
+                    AuditLog.at < ahora - timedelta(days=settings.audit_retention_days)
+                )
+            )
+        ).rowcount
         if prefijos:
             audit.record(session, "purga_demo", detalle={"cantidad": len(prefijos)})
         await session.commit()
@@ -101,6 +118,7 @@ async def purge_once(db: Database, storage: Storage, settings: Settings) -> Resu
         sesiones=sesiones or 0,
         analisis_abandonados=abandonados or 0,
         archivos_huerfanos=huerfanos,
+        registros_auditoria=registros or 0,
     )
 
 
@@ -126,6 +144,7 @@ async def purge_loop(db: Database, storage: Storage, settings: Settings) -> None
                                 "sesiones": resultado.sesiones,
                                 "analisis_abandonados": resultado.analisis_abandonados,
                                 "archivos_huerfanos": resultado.archivos_huerfanos,
+                                "registros_auditoria": resultado.registros_auditoria,
                             },
                         )
         except asyncio.CancelledError:

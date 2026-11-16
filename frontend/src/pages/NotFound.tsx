@@ -1,15 +1,24 @@
 import { Link } from "react-router-dom";
+import { MapPinOff } from "lucide-react";
+import { EmptyState } from "@/components/EmptyState";
+import { PublicShell } from "@/components/shell/PublicShell";
+import { Button } from "@/components/ui/button";
 
 export default function NotFound() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">404</h1>
-        <p className="mb-4 text-xl text-muted-foreground">Esta página no existe.</p>
-        <Link to="/" className="text-primary underline hover:text-primary/90">
-          Volver al inicio
-        </Link>
+    <PublicShell>
+      <div className="mx-auto max-w-md">
+        <EmptyState
+          icono={MapPinOff}
+          titulo="Esta página no existe"
+          descripcion="Puede que el enlace esté mal escrito o que el contenido ya no exista."
+          accion={
+            <Button asChild variant="outline">
+              <Link to="/">Volver al inicio</Link>
+            </Button>
+          }
+        />
       </div>
-    </div>
+    </PublicShell>
   );
 }

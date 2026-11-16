@@ -11,12 +11,13 @@ from pydantic import SecretStr, ValidationError
 from humanaiz.scanning import errors
 from humanaiz.scanning.prompt import SYSTEM_PROMPT, USER_INSTRUCTION
 from humanaiz.scanning.providers.base import (
+    MAX_MODELOS_LISTADOS,
     MAX_OUTPUT_TOKENS,
     b64,
     http_client,
     retry_after_seconds,
 )
-from humanaiz.scanning.types import Extraccion, ExtractionOutcome
+from humanaiz.scanning.types import Extraccion, ExtractionOutcome, ModeloDisponible
 
 BASE_URL = "https://api.openai.com/v1"
 
@@ -67,7 +68,7 @@ class OpenAIAdapter:
         except openai.ContentFilterFinishReasonError:
             raise errors.Rechazo("El modelo declinó analizar este documento.") from None
         except openai.APIError as exc:
-            raise _translate(exc) from None
+            raise traducir_error(exc) from None
         except ValidationError:
             raise errors.RespuestaInvalida(
                 "La respuesta del modelo no tiene el formato esperado."
@@ -101,6 +102,69 @@ class OpenAIAdapter:
             request_id=request_id,
         )
 
+    async def listar_modelos(
+        self,
+        *,
+        api_key: SecretStr,
+        timeout_s: float,
+        transport: httpx2.AsyncBaseTransport | None = None,
+    ) -> list[ModeloDisponible]:
+        ids = await listar_ids_compatibles(BASE_URL, api_key, timeout_s, transport)
+        return [ModeloDisponible(id=i, nombre=i) for i in ids if _es_modelo_de_chat(i)]
+
+
+# Modelos de OpenAI que no sirven para leer un documento (audio, imágenes, embeddings...).
+_NO_CHAT = (
+    "audio",
+    "realtime",
+    "tts",
+    "transcribe",
+    "image",
+    "search",
+    "embedding",
+    "moderation",
+    "instruct",
+    "dall-e",
+    "whisper",
+    "codex",
+    "babbage",
+    "davinci",
+)
+
+
+def _es_modelo_de_chat(modelo: str) -> bool:
+    return modelo.startswith(("gpt-", "chatgpt", "o1", "o3", "o4", "o5")) and not any(
+        palabra in modelo for palabra in _NO_CHAT
+    )
+
+
+async def listar_ids_compatibles(
+    base_url: str,
+    api_key: SecretStr,
+    timeout_s: float,
+    transport: httpx2.AsyncBaseTransport | None,
+) -> list[str]:
+    """GET /models en cualquier API compatible con OpenAI. También valida la clave."""
+    ids: list[str] = []
+    try:
+        async with (
+            http_client(timeout_s, transport) as http,
+            openai.AsyncOpenAI(
+                api_key=api_key.get_secret_value(),
+                base_url=base_url,
+                timeout=timeout_s,
+                max_retries=0,
+                http_client=http,
+            ) as client,
+        ):
+            async for modelo in client.models.list():
+                ids.append(modelo.id)
+                if len(ids) >= MAX_MODELOS_LISTADOS:
+                    break
+    except openai.APIError as exc:
+        raise traducir_error(exc) from None
+    return sorted(ids)
+
 
 def _refused(response: object) -> bool:
     for item in getattr(response, "output", None) or ():
@@ -110,7 +174,8 @@ def _refused(response: object) -> bool:
     return False
 
 
-def _translate(exc: openai.APIError) -> errors.ProviderError:
+def traducir_error(exc: openai.APIError) -> errors.ProviderError:
+    """Error del SDK de OpenAI (o de una API compatible) -> error propio, sin la petición."""
     if isinstance(exc, openai.APITimeoutError):
         return errors.TiempoAgotado("El proveedor tardó demasiado en responder.")
     if isinstance(exc, openai.APIConnectionError):
@@ -123,7 +188,7 @@ def _translate(exc: openai.APIError) -> errors.ProviderError:
     comunes = {"request_id": exc.request_id, "status": status}
     if isinstance(exc, openai.AuthenticationError):
         return errors.ClaveInvalida("El proveedor rechazó la clave.", **comunes)
-    if codigo in {"insufficient_quota", "billing_hard_limit_reached"}:
+    if status == 402 or codigo in {"insufficient_quota", "billing_hard_limit_reached"}:
         return errors.SinSaldo("La cuenta del proveedor no tiene saldo.", **comunes)
     if isinstance(exc, openai.PermissionDeniedError | openai.NotFoundError) or codigo in {
         "model_not_found",

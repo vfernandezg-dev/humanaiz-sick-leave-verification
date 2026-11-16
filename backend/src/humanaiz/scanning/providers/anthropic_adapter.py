@@ -11,12 +11,13 @@ from pydantic import SecretStr, ValidationError
 from humanaiz.scanning import errors
 from humanaiz.scanning.prompt import SYSTEM_PROMPT, USER_INSTRUCTION
 from humanaiz.scanning.providers.base import (
+    MAX_MODELOS_LISTADOS,
     MAX_OUTPUT_TOKENS,
     b64,
     http_client,
     retry_after_seconds,
 )
-from humanaiz.scanning.types import Extraccion, ExtractionOutcome
+from humanaiz.scanning.types import Extraccion, ExtractionOutcome, ModeloDisponible
 
 BASE_URL = "https://api.anthropic.com"
 
@@ -108,6 +109,34 @@ class AnthropicAdapter:
             modelo_efectivo=message.model,
             request_id=request_id,
         )
+
+    async def listar_modelos(
+        self,
+        *,
+        api_key: SecretStr,
+        timeout_s: float,
+        transport: httpx2.AsyncBaseTransport | None = None,
+    ) -> list[ModeloDisponible]:
+        # Todos los modelos de Claude aceptan imágenes.
+        modelos: list[ModeloDisponible] = []
+        try:
+            async with (
+                http_client(timeout_s, transport) as http,
+                anthropic.AsyncAnthropic(
+                    api_key=api_key.get_secret_value(),
+                    base_url=BASE_URL,
+                    timeout=timeout_s,
+                    max_retries=0,
+                    http_client=http,
+                ) as client,
+            ):
+                async for modelo in client.models.list(limit=100):
+                    modelos.append(ModeloDisponible(id=modelo.id, nombre=modelo.display_name))
+                    if len(modelos) >= MAX_MODELOS_LISTADOS:
+                        break
+        except anthropic.APIError as exc:
+            raise _translate(exc) from None
+        return modelos
 
 
 def _translate(exc: anthropic.APIError) -> errors.ProviderError:

@@ -53,6 +53,12 @@ class Settings(BaseSettings):
     tz_negocio: str = "America/Lima"
     enable_docs: bool = False
 
+    # Datos del proyecto que se muestran en la interfaz y en los textos legales.
+    concurso_nombre: str = Field(default="", max_length=120)
+    contacto_proyecto: str = Field(default="", max_length=200)
+    # Días que se conserva la bitácora de auditoría (contiene IPs).
+    audit_retention_days: int = Field(default=30, ge=1, le=3650)
+
     database_url: str
     db_pool_size: int = Field(default=5, ge=1, le=50)
 
@@ -75,6 +81,10 @@ class Settings(BaseSettings):
         "anthropic",
         "openai",
         "gemini",
+        "openrouter",
+        "xai",
+        "mistral",
+        "groq",
     )
     llm_request_timeout_seconds: int = Field(default=90, ge=1, le=300)
     analysis_deadline_seconds: int = Field(default=100, ge=2, le=330)
@@ -85,6 +95,7 @@ class Settings(BaseSettings):
     rate_limit_login: str = "5/minute"
     rate_limit_upload: str = "10/hour"
     rate_limit_analysis: str = "30/hour"
+    rate_limit_modelos: str = "30/hour"
     rate_limit_general: str = "240/minute"
 
     # 0 desactiva la purga periódica dentro de la API (se puede lanzar con `humanaiz purge`).

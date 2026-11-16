@@ -1,7 +1,7 @@
 // Acceso a datos con react-query. Las páginas no llaman a la API directamente.
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type FiltrosColaboradores, type FiltrosDescansos } from "@/lib/api";
-import type { DecisionRequest, PaginaDescansos } from "@/lib/types";
+import type { DecisionRequest, Descanso, PaginaDescansos } from "@/lib/types";
 
 const DESCANSOS = "descansos";
 // Mientras el servidor tenga un análisis en curso se vuelve a consultar: así
@@ -16,6 +16,11 @@ export function useConfig() {
   return useQuery({ queryKey: ["config"], queryFn: api.config, staleTime: Infinity });
 }
 
+/** Nombre del concurso para usar dentro de una frase. */
+export function useConcurso(): string {
+  return useConfig().data?.proyecto.concurso ?? "un concurso";
+}
+
 export function useMisDescansos(filtros: FiltrosDescansos = {}) {
   return useQuery({
     queryKey: [DESCANSOS, "mios", filtros],
@@ -24,12 +29,23 @@ export function useMisDescansos(filtros: FiltrosDescansos = {}) {
   });
 }
 
-export function useDescansos(filtros: FiltrosDescansos) {
+export function useDescansos(filtros: FiltrosDescansos, opciones: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: [DESCANSOS, "todos", filtros],
     queryFn: () => api.descansos(filtros),
     placeholderData: keepPreviousData,
     refetchInterval: (query) => sondeoSiHayAnalisis(query.state.data),
+    enabled: opciones.enabled ?? true,
+  });
+}
+
+export function useDescanso(id: string | undefined) {
+  return useQuery({
+    queryKey: [DESCANSOS, "detalle", id],
+    queryFn: () => api.descanso(id ?? ""),
+    enabled: Boolean(id),
+    refetchInterval: (query) =>
+      (query.state.data as Descanso | undefined)?.analisis_en_curso ? SONDEO_ANALISIS_MS : false,
   });
 }
 

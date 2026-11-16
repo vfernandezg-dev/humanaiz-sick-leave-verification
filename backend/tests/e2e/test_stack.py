@@ -26,6 +26,8 @@ import httpx
 import pytest
 from PIL import Image, ImageDraw
 
+from humanaiz.legal import TERMINOS_VERSION
+
 pytestmark = pytest.mark.e2e
 
 RAIZ = Path(__file__).resolve().parents[3]
@@ -85,7 +87,12 @@ def entrar(c: httpx.Client, rol: str) -> None:
     prefijo = "DEMO_COLABORADOR" if rol == "colaborador" else "DEMO_RRHH"
     r = c.post(
         "/api/v1/auth/login",
-        json={"dni": ENV[f"{prefijo}_DNI"], "password": ENV[f"{prefijo}_PASSWORD"]},
+        json={
+            "dni": ENV[f"{prefijo}_DNI"],
+            "password": ENV[f"{prefijo}_PASSWORD"],
+            "acepta_terminos": True,
+            "terminos_version": TERMINOS_VERSION,
+        },
     )
     assert r.status_code == 200, r.text
     c.headers["Authorization"] = f"Bearer {r.json()['access_token']}"
@@ -158,7 +165,12 @@ def test_cookie_de_sesion_inaccesible_para_scripts() -> None:
     with cliente() as c:
         r = c.post(
             "/api/v1/auth/login",
-            json={"dni": ENV["DEMO_COLABORADOR_DNI"], "password": ENV["DEMO_COLABORADOR_PASSWORD"]},
+            json={
+                "dni": ENV["DEMO_COLABORADOR_DNI"],
+                "password": ENV["DEMO_COLABORADOR_PASSWORD"],
+                "acepta_terminos": True,
+                "terminos_version": TERMINOS_VERSION,
+            },
         )
     sesion = next(v for v in r.headers.get_list("set-cookie") if "hz_session" in v)
     assert sesion.startswith("__Host-hz_session=")

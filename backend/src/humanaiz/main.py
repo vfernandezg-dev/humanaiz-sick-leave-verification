@@ -12,7 +12,18 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, Depends, FastAPI
 
 from humanaiz import __version__
-from humanaiz.api import analisis, auth, colaboradores, descansos, health, public_config
+from humanaiz.api import (
+    analisis,
+    auth,
+    colaboradores,
+    descansos,
+    health,
+    llm,
+    public_config,
+)
+from humanaiz.api import (
+    demo as demo_api,
+)
 from humanaiz.config import Settings, enforce_boot_guard, get_settings
 from humanaiz.db import Database
 from humanaiz.errors import install_error_handlers
@@ -105,5 +116,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     api.include_router(colaboradores.router)
     api.include_router(descansos.router)
     api.include_router(analisis.router)
+    api.include_router(llm.router)
+    api.include_router(demo_api.router)
     app.include_router(api)
     return app

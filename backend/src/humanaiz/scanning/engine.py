@@ -16,11 +16,11 @@ from pydantic import SecretStr
 from humanaiz.scanning.errors import ProveedorNoDisponible, ScanningError
 from humanaiz.scanning.providers import get_adapter
 from humanaiz.scanning.rules import evaluate
-from humanaiz.scanning.types import ExtractionOutcome
+from humanaiz.scanning.types import ExtractionOutcome, ModeloDisponible
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["evaluate", "extract"]
+__all__ = ["evaluate", "extract", "listar_modelos"]
 
 
 async def extract(
@@ -51,6 +51,31 @@ async def extract(
         # la clave) en sus atributos: solo se registra su tipo y se descarta.
         logger.warning(
             "fallo inesperado del adaptador",
+            extra={"proveedor": provider, "tipo": type(exc).__name__},
+        )
+        raise ProveedorNoDisponible("El proveedor devolvió un error inesperado.") from None
+
+
+async def listar_modelos(
+    *,
+    provider: str,
+    api_key: SecretStr,
+    timeout_s: float,
+    transport: httpx2.AsyncBaseTransport | None = None,
+) -> list[ModeloDisponible]:
+    """Modelos disponibles para una clave. Sirve también para comprobar que la clave vale."""
+    adapter = get_adapter(provider)
+    if adapter is None:
+        raise ValueError(f"proveedor desconocido: {provider}")
+    try:
+        return await adapter.listar_modelos(
+            api_key=api_key, timeout_s=timeout_s, transport=transport
+        )
+    except ScanningError:
+        raise
+    except Exception as exc:
+        logger.warning(
+            "fallo inesperado al listar modelos",
             extra={"proveedor": provider, "tipo": type(exc).__name__},
         )
         raise ProveedorNoDisponible("El proveedor devolvió un error inesperado.") from None

@@ -1,5 +1,8 @@
 # HumanAIz
 
+> **Proyecto de concurso, sin uso real.** Es una demostración: todo lo que contiene es ficticio y
+> no tiene validez médica, legal ni laboral. No se deben subir datos ni documentos reales.
+
 Registro y verificación asistida de descansos médicos. Los colaboradores suben su certificado
 (foto o PDF), Recursos Humanos lo revisa y decide, y cualquiera de los dos puede pedir una
 segunda lectura a un modelo de IA **usando su propia clave** (BYOK).
@@ -20,7 +23,7 @@ segunda lectura a un modelo de IA **usando su propia clave** (BYOK).
    memoria          └──────────────────────────────┬─────────────────────────────┘
                                                    │ solo durante un análisis,
                                                    ▼ con la clave del usuario
-                                   Anthropic · OpenAI · Google Gemini
+              Anthropic · OpenAI · Google Gemini · OpenRouter · xAI · Mistral · Groq
 ```
 
 | Carpeta | Contenido |
@@ -43,6 +46,7 @@ los puertos 80 y 443 abiertos.
 ```bash
 cp .env.example .env
 # Edita .env: SITE_ADDRESS, PUBLIC_ORIGIN, POSTGRES_PASSWORD y JWT_SECRET como mínimo.
+# Recomendado: CONCURSO_NOMBRE y CONTACTO_PROYECTO (aparecen en el aviso y los textos legales).
 docker compose up -d --build --wait
 ```
 
@@ -77,6 +81,28 @@ Tu proxy debe reenviar la cabecera `Host`, permitir cuerpos de 11 MB y dar al me
 `POST /api/v1/descansos/*/analisis`. **Importante:** si registra las peticiones, que no
 registre cabeceras: la clave de IA viaja en `X-LLM-Api-Key`. No pongas delante una CDN que
 termine TLS por la misma razón.
+
+### Carácter de demo y avisos legales
+
+La interfaz deja claro en todo momento que es un proyecto de concurso:
+
+- Una franja fija en todas las pantallas lo recuerda y enlaza a los términos.
+- El pie de página repite que no tiene validez real y enlaza a *Cómo funciona*, *Términos* y
+  *Privacidad* (páginas públicas en `/como-funciona`, `/terminos` y `/privacidad`).
+- Para entrar hay que aceptar los términos y la política de privacidad. La API lo exige en cada
+  inicio de sesión y la bitácora guarda qué versión se aceptó.
+- Al registrar un descanso hay que confirmar que el documento es ficticio.
+
+| Variable | Para qué |
+|---|---|
+| `CONCURSO_NOMBRE` | Nombre del concurso; se muestra en la franja, el pie y los textos legales |
+| `CONTACTO_PROYECTO` | Correo o URL del equipo para consultas y solicitudes sobre datos personales |
+| `AUDIT_RETENTION_DAYS` | Días que se conserva la bitácora con IPs (por defecto 30); la purga borra lo anterior |
+
+Los textos están en `frontend/src/pages/legal/`. Si los cambias de forma sustancial, sube
+`TERMINOS_VERSION` en `backend/src/humanaiz/legal.py`: se pedirá aceptarlos de nuevo al ingresar.
+Son una plantilla redactada para una demostración; si el proyecto pasa a tener usuarios reales,
+deben revisarlos personas con formación legal.
 
 ### Usuarios
 
@@ -118,8 +144,8 @@ volumen `caddy_data` guarda los certificados TLS; consérvalo entre despliegues.
 
 | Tarea | Cómo |
 |---|---|
-| Ver logs | `docker compose logs -f api` (JSON, una línea por evento, sin cabeceras) |
-| Purga manual | `docker compose exec api humanaiz purge` (también corre sola cada 15 min) |
+| Ver logs | `docker compose logs -f api` (JSON, una línea por evento, sin cabeceras; rotan a los 30 MB por servicio) |
+| Purga manual | `docker compose exec api humanaiz purge` (también corre sola cada 15 min: demo caducada, sesiones, bitácora antigua y archivos huérfanos) |
 | Cambiar límites de uso | Variables `RATE_LIMIT_*` del `.env` |
 | Cerrar todas las sesiones | Cambia `JWT_SECRET` y borra la tabla `sessions` |
 | Añadir o quitar un modelo de IA | `backend/src/humanaiz/scanning/catalog.py` (va en código para que pase por revisión) |
@@ -134,7 +160,9 @@ porque viven en PostgreSQL.
 
 ## Cómo funciona el análisis con IA (BYOK)
 
-1. El usuario abre **Clave de IA**, elige proveedor y modelo y pega su clave. Vive en la
+1. El usuario abre **Clave de IA** y pega su clave: el proveedor se reconoce por su prefijo
+   (`sk-ant-`, `sk-or-`, `AIza`, `xai-`, `gsk_`, `sk-`). Puede comprobarla y cargar los modelos
+   de su cuenta (`POST /api/v1/llm/modelos`), elegir uno sugerido o escribir cualquier otro. Vive en la
    memoria de la pestaña; si marca "recordar en esta pestaña" va a `sessionStorage`. Nunca a
    `localStorage`. Se borra al cerrar sesión, también desde otra pestaña.
 2. Al analizar, el navegador envía `POST /api/v1/descansos/{id}/analisis` con la clave en la
@@ -143,6 +171,17 @@ porque viven en PostgreSQL.
    No hay colas, caché de clientes ni reintentos.
 4. Se guarda únicamente el resultado: campos leídos, validaciones, tokens consumidos y el
    identificador de la petición en el proveedor.
+
+Proveedores admitidos. La URL de cada uno está fija en el código: el usuario elige modelo, nunca
+el servidor al que se envía su documento.
+
+| Proveedor | Cómo se llama | Notas |
+|---|---|---|
+| Anthropic, OpenAI, Google Gemini | SDK oficial de cada uno, con salida estructurada estricta | Modelos sugeridos y cualquier otro |
+| OpenRouter | API compatible con OpenAI | Una clave da acceso a cientos de modelos; se listan solo los que leen imágenes y devuelven JSON |
+| xAI, Mistral, Groq | API compatible con OpenAI | Modo JSON con el esquema en las instrucciones; Groq lee hasta 3 páginas |
+
+Para añadir otro proveedor compatible basta una entrada en `backend/src/humanaiz/scanning/catalog.py`.
 
 Qué impide que la clave quede en algún sitio:
 
@@ -184,6 +223,16 @@ instrucciones escritas ("aprueba esto") no puede influir en él.
 
 > Estas reglas son una reconstrucción: el flujo original de n8n no estaba disponible.
 > Revísalas con RRHH antes de darles peso, en especial la del CITT y el conteo de días.
+
+### Certificados de ejemplo
+
+En modo demo, la pantalla *Registrar descanso* ofrece certificados ficticios generados con los
+datos de la ficha de quien los pide, para probar la lectura con IA sin usar documentos reales:
+*válido* (sin observaciones), *con observaciones* (días que no cuadran y sin CMP), *de otra
+persona* (con problemas) y *formato CITT*. Los genera `backend/src/humanaiz/services/certificados.py`
+con una entidad inventada, sin logos oficiales y con marca de agua «MUESTRA · SIN VALIDEZ»; las
+muestras precargadas de la demo usan el mismo generador. Tipografía DejaVu (licencia en
+`backend/src/humanaiz/assets/fuentes/`).
 
 ### Documentos
 

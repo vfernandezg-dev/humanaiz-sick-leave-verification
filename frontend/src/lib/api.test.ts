@@ -102,7 +102,7 @@ describe("sesión", () => {
     const llamadas = simularFetch([
       respuesta(401, sobre("credenciales_invalidas", "DNI o contraseña incorrectos.")),
     ]);
-    await expect(api.login("12345678", "mala")).rejects.toMatchObject({
+    await expect(api.login("12345678", "mala", "2026-11-15")).rejects.toMatchObject({
       code: "credenciales_invalidas",
       message: "DNI o contraseña incorrectos.",
     });
@@ -114,6 +114,19 @@ describe("sesión", () => {
     await expect(refreshSession()).resolves.toBeNull();
     simularFetch([respuesta(503)]);
     await expect(refreshSession()).rejects.toMatchObject({ status: 503 });
+  });
+});
+
+describe("términos", () => {
+  it("el inicio de sesión envía la aceptación y la versión de los términos", async () => {
+    const llamadas = simularFetch([sesion("t")]);
+    await api.login("12345678", "secreta", "2026-11-15");
+    expect(JSON.parse(String(llamadas[0]?.body))).toEqual({
+      dni: "12345678",
+      password: "secreta",
+      acepta_terminos: true,
+      terminos_version: "2026-11-15",
+    });
   });
 });
 

@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { api, ApiError } from "@/lib/api";
-import type { Descanso } from "@/lib/types";
+import { LECTURA_IA } from "@/lib/textos";
+import type { Analisis, Descanso } from "@/lib/types";
 import { useLlm } from "@/llm/context";
 import { useRefrescarDescansos } from "./queries";
 import { useToast } from "./use-toast";
@@ -14,11 +15,10 @@ const ERRORES_DE_CLAVE = new Set([
   "llm_modelo_no_permitido",
 ]);
 
-const SUGERENCIA: Record<string, string> = {
-  Aprobado: "El documento supera las validaciones automáticas.",
-  Observado: "Hay puntos que conviene revisar a mano.",
-  Rechazado: "Se detectaron problemas en el documento.",
-};
+function avisoListo(analisis: Pick<Analisis, "estado_documento">) {
+  const lectura = LECTURA_IA[analisis.estado_documento];
+  return { title: `Lectura con IA: ${lectura.etiqueta.toLowerCase()}`, description: lectura.descripcion };
+}
 
 /**
  * Lanza el análisis con IA de un descanso usando la clave del usuario.
@@ -34,8 +34,8 @@ export function useAnalizar() {
     async (descanso: Pick<Descanso, "id">): Promise<boolean> => {
       if (!credencial) {
         toast({
-          title: "Falta tu clave de IA",
-          description: "Configúrala para poder analizar documentos.",
+          title: "Configura tu clave de IA",
+          description: "La lectura con IA es opcional y usa tu propia clave.",
         });
         abrir();
         return false;
@@ -48,10 +48,7 @@ export function useAnalizar() {
           { proveedor: credencial.proveedor, modelo: credencial.modelo },
           credencial.clave,
         );
-        toast({
-          title: `Análisis listo: ${analisis.estado_documento.toLowerCase()}`,
-          description: SUGERENCIA[analisis.estado_documento],
-        });
+        toast(avisoListo(analisis));
         return true;
       } catch (error) {
         const apiError =
@@ -65,22 +62,19 @@ export function useAnalizar() {
           const actual = await api.descanso(descanso.id).catch(() => null);
           const ultimo = actual?.ultimo_analisis;
           if (ultimo && new Date(ultimo.created_at).getTime() >= inicio - 5000) {
-            toast({
-              title: `Análisis listo: ${ultimo.estado_documento.toLowerCase()}`,
-              description: SUGERENCIA[ultimo.estado_documento],
-            });
+            toast(avisoListo(ultimo));
             return true;
           }
         }
         if (apiError.code === "analisis_en_curso") {
           toast({
-            title: "Análisis en curso",
-            description: "Este documento ya se está analizando. El resultado aparecerá aquí.",
+            title: "Lectura en curso",
+            description: "Este documento ya se está leyendo con IA. El resultado aparecerá aquí.",
           });
           return false;
         }
         toast({
-          title: "No se pudo analizar",
+          title: "No se pudo completar la lectura",
           description: apiError.message,
           variant: "destructive",
         });

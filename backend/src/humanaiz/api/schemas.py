@@ -32,6 +32,9 @@ class Pagina[T](BaseModel):
 class LoginRequest(BaseModel):
     dni: Dni
     password: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+    # Cada inicio de sesión exige aceptar la versión vigente de los términos.
+    acepta_terminos: bool = False
+    terminos_version: Annotated[str, StringConstraints(max_length=20)] | None = None
 
 
 class UsuarioColaborador(BaseModel):
@@ -71,6 +74,14 @@ class DemoConfig(BaseModel):
     habilitado: bool
     aviso: str | None
     usuarios: list[DemoUsuario]
+    retencion_horas: int
+
+
+class ProyectoConfig(BaseModel):
+    concurso: str | None
+    contacto: str | None
+    version_terminos: str
+    retencion_registros_dias: int
 
 
 class CargaConfig(BaseModel):
@@ -89,6 +100,11 @@ class ProveedorLlm(BaseModel):
     id: str
     nombre: str
     formato_clave: str
+    # Prefijos con los que la interfaz reconoce el proveedor al pegar la clave.
+    prefijos_clave: list[str]
+    url_claves: str
+    max_imagenes: int
+    # Modelos sugeridos; se acepta cualquier otro con nombre válido.
     modelos: list[ModeloLlm]
 
 
@@ -97,6 +113,7 @@ class LlmConfig(BaseModel):
 
 
 class ConfigPublica(BaseModel):
+    proyecto: ProyectoConfig
     demo: DemoConfig
     carga: CargaConfig
     llm: LlmConfig
@@ -183,9 +200,24 @@ class Analisis(BaseModel):
     version_reglas: str
 
 
+class ModelosRequest(BaseModel):
+    proveedor: Annotated[str, StringConstraints(min_length=1, max_length=20)]
+
+
+class ModeloDisponibleSalida(BaseModel):
+    id: str
+    nombre: str
+    sugerido: bool
+
+
+class ModelosDisponibles(BaseModel):
+    proveedor: str
+    modelos: list[ModeloDisponibleSalida]
+
+
 class AnalisisRequest(BaseModel):
     proveedor: Annotated[str, StringConstraints(min_length=1, max_length=20)]
-    modelo: Annotated[str, StringConstraints(min_length=1, max_length=80)] | None = None
+    modelo: Annotated[str, StringConstraints(min_length=1, max_length=120)] | None = None
 
 
 # ---------- descansos ----------

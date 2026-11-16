@@ -201,7 +201,8 @@ async def test_proveedor_y_modelo_deben_estar_permitidos(entorno) -> None:
     casos = [
         ({"proveedor": "inventado"}, "llm_proveedor_no_soportado"),
         ({"proveedor": "openai"}, "llm_proveedor_no_soportado"),  # existe pero no está habilitado
-        ({"proveedor": "fake", "modelo": "gpt-otro"}, "llm_modelo_no_permitido"),
+        ({"proveedor": "fake", "modelo": "modelo con espacios"}, "llm_modelo_no_permitido"),
+        ({"proveedor": "fake", "modelo": "../../v1/keys"}, "llm_modelo_no_permitido"),
         ({"proveedor": "anthropic", "modelo": "fake-1"}, "llm_modelo_no_permitido"),
         ({"modelo": "fake-1"}, "validacion"),
     ]

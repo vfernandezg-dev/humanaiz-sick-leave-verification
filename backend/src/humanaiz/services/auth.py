@@ -52,6 +52,7 @@ async def login(
     *,
     dni: str,
     password: str,
+    terminos_version: str,
     ip: str | None,
     user_agent: str | None,
     visitor_cookie: str | None,
@@ -86,7 +87,10 @@ async def login(
     )
     session.add(row)
     await session.flush()
-    audit.record(session, "login", actor_id=user.id, ip=ip)
+    # Queda constancia de qué versión de los términos aceptó en este inicio de sesión.
+    audit.record(
+        session, "login", actor_id=user.id, ip=ip, detalle={"terminos_version": terminos_version}
+    )
     await session.commit()
 
     return SesionIniciada(

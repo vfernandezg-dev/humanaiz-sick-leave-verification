@@ -233,7 +233,8 @@ async def _purge(args: argparse.Namespace, settings: Settings) -> int:
         await db.dispose()
     print(
         f"Purga: {r.descansos_demo} descansos de demo, {r.sesiones} sesiones, "
-        f"{r.analisis_abandonados} análisis abandonados, {r.archivos_huerfanos} archivos huérfanos."
+        f"{r.analisis_abandonados} análisis abandonados, {r.archivos_huerfanos} archivos "
+        f"huérfanos, {r.registros_auditoria} registros de auditoría antiguos."
     )
     return 0
 

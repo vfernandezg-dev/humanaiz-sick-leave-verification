@@ -57,8 +57,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [limpiarEstadoLocal]);
 
   const iniciarSesion = useCallback(
-    async (dni: string, password: string) => {
-      const sesion = await api.login(dni, password);
+    async (dni: string, password: string, terminosVersion: string) => {
+      const sesion = await api.login(dni, password, terminosVersion);
       // Otra persona pudo usar antes esta pestaña: se parte de cero.
       llmStore.olvidar();
       queryClient.clear();

@@ -12,6 +12,7 @@ import type {
   Descanso,
   EstadoDescanso,
   Facetas,
+  ModelosDisponibles,
   PaginaColaboradores,
   PaginaDescansos,
   Sesion,
@@ -176,6 +177,8 @@ function query(params: Record<string, string | number | boolean | undefined | nu
   return texto ? `?${texto}` : "";
 }
 
+export type VarianteEjemplo = "valido" | "observado" | "otra-persona" | "citt";
+
 export interface FiltrosDescansos {
   estado?: EstadoDescanso;
   dni?: string;
@@ -198,10 +201,12 @@ export interface FiltrosColaboradores {
 export const api = {
   config: () => json<ConfigPublica>("/config"),
 
-  async login(dni: string, password: string): Promise<Sesion> {
+  /** Inicia sesión aceptando la versión vigente de los términos (se registra en el servidor). */
+  async login(dni: string, password: string, terminosVersion: string): Promise<Sesion> {
     // Sin reintento con refresh: un 401 aquí significa credenciales incorrectas.
+    const cuerpo = { dni, password, acepta_terminos: true, terminos_version: terminosVersion };
     const sesion = (await (
-      await send("/auth/login", { method: "POST", json: { dni, password } }, false)
+      await send("/auth/login", { method: "POST", json: cuerpo }, false)
     ).json()) as Sesion;
     accessToken = sesion.access_token;
     return sesion;
@@ -252,6 +257,21 @@ export const api = {
     }),
 
   historialAnalisis: (id: string) => json<Analisis[]>(`/descansos/${id}/analisis`),
+
+  /**
+   * Comprueba la clave y lista los modelos que ofrece. Como en el análisis, la
+   * clave viaja solo en la cabecera de esta petición y no se guarda.
+   */
+  modelosDisponibles: (proveedor: string, clave: string) =>
+    json<ModelosDisponibles>("/llm/modelos", {
+      method: "POST",
+      json: { proveedor },
+      headers: { [LLM_KEY_HEADER]: clave },
+    }),
+
+  /** Certificado ficticio con los datos del propio usuario (solo en modo demo). */
+  certificadoEjemplo: async (variante: VarianteEjemplo, formato: "jpg" | "pdf" = "jpg"): Promise<Blob> =>
+    (await send(`/demo/certificados/${variante}?formato=${formato}`)).blob(),
 
   /** Página del documento re-codificada por el servidor (JPEG sin metadatos). */
   pagina: async (id: string, numero: number, signal?: AbortSignal): Promise<Blob> =>

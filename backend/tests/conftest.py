@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from humanaiz.config import Settings
+from humanaiz.legal import TERMINOS_VERSION
 from humanaiz.main import create_app
 from humanaiz.models import Base, Colaborador, User
 from humanaiz.scanning import catalog
@@ -173,9 +174,19 @@ async def create_user(
     return user
 
 
+def credenciales(dni: str, password: str = PASSWORD) -> dict[str, Any]:
+    """Cuerpo de inicio de sesión válido, con los términos vigentes aceptados."""
+    return {
+        "dni": dni,
+        "password": password,
+        "acepta_terminos": True,
+        "terminos_version": TERMINOS_VERSION,
+    }
+
+
 async def login(client: httpx.AsyncClient, dni: str, password: str = PASSWORD) -> dict[str, Any]:
     """Inicia sesión y deja el token de acceso como cabecera por defecto del cliente."""
-    r = await client.post("/api/v1/auth/login", json={"dni": dni, "password": password})
+    r = await client.post("/api/v1/auth/login", json=credenciales(dni, password))
     assert r.status_code == 200, r.text
     body = r.json()
     client.headers["Authorization"] = f"Bearer {body['access_token']}"
@@ -189,7 +200,10 @@ def fake_provider(monkeypatch: pytest.MonkeyPatch) -> FakeAdapter:
     info = catalog.ProviderInfo(
         id="fake",
         nombre="Simulado",
+        familia="openai",
         formato_clave="",
+        prefijos_clave=(),
+        url_claves="https://example.com",
         modelos=(
             catalog.ModelInfo("fake-1", "Simulado 1", predeterminado=True),
             catalog.ModelInfo("fake-2", "Simulado 2"),

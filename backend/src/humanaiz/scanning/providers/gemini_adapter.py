@@ -12,8 +12,12 @@ from pydantic import SecretStr, ValidationError
 
 from humanaiz.scanning import errors
 from humanaiz.scanning.prompt import SYSTEM_PROMPT, USER_INSTRUCTION
-from humanaiz.scanning.providers.base import MAX_OUTPUT_TOKENS, hardened_client_args
-from humanaiz.scanning.types import Extraccion, ExtractionOutcome
+from humanaiz.scanning.providers.base import (
+    MAX_MODELOS_LISTADOS,
+    MAX_OUTPUT_TOKENS,
+    hardened_client_args,
+)
+from humanaiz.scanning.types import Extraccion, ExtractionOutcome, ModeloDisponible
 
 BASE_URL = "https://generativelanguage.googleapis.com"
 
@@ -28,6 +32,28 @@ def _nombre(enum_o_texto: object) -> str:
     return str(getattr(enum_o_texto, "name", enum_o_texto) or "")
 
 
+def _cliente(
+    api_key: SecretStr, timeout_s: float, transport: httpx2.AsyncBaseTransport | None
+) -> genai.Client:
+    client_args = hardened_client_args(timeout_s, transport)
+    client_args.pop("timeout")  # el SDK fija el suyo desde HttpOptions.timeout (ms)
+    return genai.Client(
+        # Explícito: sin esto, variables del entorno podrían activar Vertex AI.
+        vertexai=False,
+        api_key=api_key.get_secret_value(),
+        http_options=types.HttpOptions(
+            base_url=BASE_URL,
+            timeout=int(timeout_s * 1000),
+            retry_options=types.HttpRetryOptions(attempts=1),
+            async_client_args=client_args,
+        ),
+    )
+
+
+# Modelos de Gemini que no sirven para leer un documento.
+_NO_LECTURA = ("embedding", "image", "tts", "audio", "live", "aqa", "imagen", "veo")
+
+
 class GeminiAdapter:
     id = "gemini"
 
@@ -40,19 +66,7 @@ class GeminiAdapter:
         timeout_s: float,
         transport: httpx2.AsyncBaseTransport | None = None,
     ) -> ExtractionOutcome:
-        client_args = hardened_client_args(timeout_s, transport)
-        client_args.pop("timeout")  # el SDK fija el suyo desde HttpOptions.timeout (ms)
-        client = genai.Client(
-            # Explícito: sin esto, variables del entorno podrían activar Vertex AI.
-            vertexai=False,
-            api_key=api_key.get_secret_value(),
-            http_options=types.HttpOptions(
-                base_url=BASE_URL,
-                timeout=int(timeout_s * 1000),
-                retry_options=types.HttpRetryOptions(attempts=1),
-                async_client_args=client_args,
-            ),
-        )
+        client = _cliente(api_key, timeout_s, transport)
         contents: list[object] = [
             types.Part.from_bytes(data=page, mime_type="image/jpeg") for page in pages
         ]
@@ -112,6 +126,39 @@ class GeminiAdapter:
             modelo_efectivo=response.model_version or model,
             request_id=request_id,
         )
+
+    async def listar_modelos(
+        self,
+        *,
+        api_key: SecretStr,
+        timeout_s: float,
+        transport: httpx2.AsyncBaseTransport | None = None,
+    ) -> list[ModeloDisponible]:
+        client = _cliente(api_key, timeout_s, transport)
+        modelos: list[ModeloDisponible] = []
+        try:
+            async for modelo in await client.aio.models.list(config={"page_size": 100}):
+                nombre_api = (modelo.name or "").removeprefix("models/")
+                acciones = modelo.supported_actions or []
+                if (
+                    nombre_api
+                    and "generateContent" in acciones
+                    and not any(p in nombre_api for p in _NO_LECTURA)
+                ):
+                    modelos.append(
+                        ModeloDisponible(id=nombre_api, nombre=modelo.display_name or nombre_api)
+                    )
+                if len(modelos) >= MAX_MODELOS_LISTADOS:
+                    break
+        except genai_errors.APIError as exc:
+            raise _translate(exc) from None
+        except httpx2.TimeoutException:
+            raise errors.TiempoAgotado("El proveedor tardó demasiado en responder.") from None
+        except httpx2.TransportError:
+            raise errors.ErrorConexion("No se pudo conectar con el proveedor.") from None
+        finally:
+            await client.aio.aclose()
+        return modelos
 
 
 def _translate(exc: genai_errors.APIError) -> errors.ProviderError:

@@ -893,6 +893,119 @@
           }
         }
       }
+    },
+    "/api/v1/llm/modelos": {
+      "post": {
+        "tags": [
+          "análisis"
+        ],
+        "summary": "Modelos Disponibles",
+        "description": "Comprueba la clave y devuelve los modelos que puede usar, sugeridos primero.\n\nLa clave no se guarda: viaja en la cabecera, se usa para esta consulta y se\ndescarta, igual que en el análisis.",
+        "operationId": "modelos_disponibles_api_v1_llm_modelos_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelosRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelosDisponibles"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "x-llm-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Clave del proveedor de IA. Se usa solo para esta consulta."
+          }
+        ]
+      }
+    },
+    "/api/v1/demo/certificados/{variante}": {
+      "get": {
+        "tags": [
+          "demo"
+        ],
+        "summary": "Certificado De Ejemplo",
+        "description": "Genera un certificado ficticio con los datos del propio usuario.\n\nSolo existe en modo demo: los datos de las cuentas de prueba son inventados.\nVariantes: `valido` (coincide con la ficha), `observado` (días que no cuadran\ny sin CMP), `otra-persona` (a nombre de otra persona) y `citt`.",
+        "operationId": "certificado_de_ejemplo_api_v1_demo_certificados__variante__get",
+        "parameters": [
+          {
+            "name": "variante",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "valido",
+                "observado",
+                "otra-persona",
+                "citt"
+              ],
+              "type": "string",
+              "title": "Variante"
+            }
+          },
+          {
+            "name": "formato",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "jpg",
+                "pdf"
+              ],
+              "type": "string",
+              "default": "jpg",
+              "title": "Formato"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/jpeg": {},
+              "application/pdf": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1019,7 +1132,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 80,
+                "maxLength": 120,
                 "minLength": 1
               },
               {
@@ -1172,6 +1285,9 @@
       },
       "ConfigPublica": {
         "properties": {
+          "proyecto": {
+            "$ref": "#/components/schemas/ProyectoConfig"
+          },
           "demo": {
             "$ref": "#/components/schemas/DemoConfig"
           },
@@ -1184,6 +1300,7 @@
         },
         "type": "object",
         "required": [
+          "proyecto",
           "demo",
           "carga",
           "llm"
@@ -1266,13 +1383,18 @@
             },
             "type": "array",
             "title": "Usuarios"
+          },
+          "retencion_horas": {
+            "type": "integer",
+            "title": "Retencion Horas"
           }
         },
         "type": "object",
         "required": [
           "habilitado",
           "aviso",
-          "usuarios"
+          "usuarios",
+          "retencion_horas"
         ],
         "title": "DemoConfig"
       },
@@ -1696,6 +1818,23 @@
             "maxLength": 200,
             "minLength": 1,
             "title": "Password"
+          },
+          "acepta_terminos": {
+            "type": "boolean",
+            "title": "Acepta Terminos",
+            "default": false
+          },
+          "terminos_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terminos Version"
           }
         },
         "type": "object",
@@ -1704,6 +1843,29 @@
           "password"
         ],
         "title": "LoginRequest"
+      },
+      "ModeloDisponibleSalida": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "sugerido": {
+            "type": "boolean",
+            "title": "Sugerido"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "nombre",
+          "sugerido"
+        ],
+        "title": "ModeloDisponibleSalida"
       },
       "ModeloLlm": {
         "properties": {
@@ -1727,6 +1889,42 @@
           "predeterminado"
         ],
         "title": "ModeloLlm"
+      },
+      "ModelosDisponibles": {
+        "properties": {
+          "proveedor": {
+            "type": "string",
+            "title": "Proveedor"
+          },
+          "modelos": {
+            "items": {
+              "$ref": "#/components/schemas/ModeloDisponibleSalida"
+            },
+            "type": "array",
+            "title": "Modelos"
+          }
+        },
+        "type": "object",
+        "required": [
+          "proveedor",
+          "modelos"
+        ],
+        "title": "ModelosDisponibles"
+      },
+      "ModelosRequest": {
+        "properties": {
+          "proveedor": {
+            "type": "string",
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Proveedor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "proveedor"
+        ],
+        "title": "ModelosRequest"
       },
       "Pagina_Colaborador_": {
         "properties": {
@@ -1804,6 +2002,21 @@
             "type": "string",
             "title": "Formato Clave"
           },
+          "prefijos_clave": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Prefijos Clave"
+          },
+          "url_claves": {
+            "type": "string",
+            "title": "Url Claves"
+          },
+          "max_imagenes": {
+            "type": "integer",
+            "title": "Max Imagenes"
+          },
           "modelos": {
             "items": {
               "$ref": "#/components/schemas/ModeloLlm"
@@ -1817,9 +2030,54 @@
           "id",
           "nombre",
           "formato_clave",
+          "prefijos_clave",
+          "url_claves",
+          "max_imagenes",
           "modelos"
         ],
         "title": "ProveedorLlm"
+      },
+      "ProyectoConfig": {
+        "properties": {
+          "concurso": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Concurso"
+          },
+          "contacto": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contacto"
+          },
+          "version_terminos": {
+            "type": "string",
+            "title": "Version Terminos"
+          },
+          "retencion_registros_dias": {
+            "type": "integer",
+            "title": "Retencion Registros Dias"
+          }
+        },
+        "type": "object",
+        "required": [
+          "concurso",
+          "contacto",
+          "version_terminos",
+          "retencion_registros_dias"
+        ],
+        "title": "ProyectoConfig"
       },
       "Sesion": {
         "properties": {

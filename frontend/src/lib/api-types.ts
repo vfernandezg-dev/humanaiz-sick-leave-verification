@@ -274,6 +274,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/modelos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Modelos Disponibles
+         * @description Comprueba la clave y devuelve los modelos que puede usar, sugeridos primero.
+         *
+         *     La clave no se guarda: viaja en la cabecera, se usa para esta consulta y se
+         *     descarta, igual que en el análisis.
+         */
+        post: operations["modelos_disponibles_api_v1_llm_modelos_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/demo/certificados/{variante}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Certificado De Ejemplo
+         * @description Genera un certificado ficticio con los datos del propio usuario.
+         *
+         *     Solo existe en modo demo: los datos de las cuentas de prueba son inventados.
+         *     Variantes: `valido` (coincide con la ficha), `observado` (días que no cuadran
+         *     y sin CMP), `otra-persona` (a nombre de otra persona) y `citt`.
+         */
+        get: operations["certificado_de_ejemplo_api_v1_demo_certificados__variante__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -379,6 +426,7 @@ export interface components {
         };
         /** ConfigPublica */
         ConfigPublica: {
+            proyecto: components["schemas"]["ProyectoConfig"];
             demo: components["schemas"]["DemoConfig"];
             carga: components["schemas"]["CargaConfig"];
             llm: components["schemas"]["LlmConfig"];
@@ -405,6 +453,8 @@ export interface components {
             aviso: string | null;
             /** Usuarios */
             usuarios: components["schemas"]["DemoUsuario"][];
+            /** Retencion Horas */
+            retencion_horas: number;
         };
         /** DemoUsuario */
         DemoUsuario: {
@@ -541,6 +591,22 @@ export interface components {
             dni: string;
             /** Password */
             password: string;
+            /**
+             * Acepta Terminos
+             * @default false
+             */
+            acepta_terminos: boolean;
+            /** Terminos Version */
+            terminos_version?: string | null;
+        };
+        /** ModeloDisponibleSalida */
+        ModeloDisponibleSalida: {
+            /** Id */
+            id: string;
+            /** Nombre */
+            nombre: string;
+            /** Sugerido */
+            sugerido: boolean;
         };
         /** ModeloLlm */
         ModeloLlm: {
@@ -550,6 +616,18 @@ export interface components {
             nombre: string;
             /** Predeterminado */
             predeterminado: boolean;
+        };
+        /** ModelosDisponibles */
+        ModelosDisponibles: {
+            /** Proveedor */
+            proveedor: string;
+            /** Modelos */
+            modelos: components["schemas"]["ModeloDisponibleSalida"][];
+        };
+        /** ModelosRequest */
+        ModelosRequest: {
+            /** Proveedor */
+            proveedor: string;
         };
         /** Pagina[Colaborador] */
         Pagina_Colaborador_: {
@@ -581,8 +659,25 @@ export interface components {
             nombre: string;
             /** Formato Clave */
             formato_clave: string;
+            /** Prefijos Clave */
+            prefijos_clave: string[];
+            /** Url Claves */
+            url_claves: string;
+            /** Max Imagenes */
+            max_imagenes: number;
             /** Modelos */
             modelos: components["schemas"]["ModeloLlm"][];
+        };
+        /** ProyectoConfig */
+        ProyectoConfig: {
+            /** Concurso */
+            concurso: string | null;
+            /** Contacto */
+            contacto: string | null;
+            /** Version Terminos */
+            version_terminos: string;
+            /** Retencion Registros Dias */
+            retencion_registros_dias: number;
         };
         /** Sesion */
         Sesion: {
@@ -1197,6 +1292,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Analisis"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    modelos_disponibles_api_v1_llm_modelos_post: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Clave del proveedor de IA. Se usa solo para esta consulta. */
+                "x-llm-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelosRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelosDisponibles"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    certificado_de_ejemplo_api_v1_demo_certificados__variante__get: {
+        parameters: {
+            query?: {
+                formato?: "jpg" | "pdf";
+            };
+            header?: never;
+            path: {
+                variante: "valido" | "observado" | "otra-persona" | "citt";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": unknown;
+                    "application/pdf": unknown;
                 };
             };
             /** @description Validation Error */
