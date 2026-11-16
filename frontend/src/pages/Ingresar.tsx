@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,61 +22,41 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { VistaProducto } from "@/components/VistaProducto";
 import { useConfig } from "@/hooks/queries";
+import { useI18n, type Textos } from "@/i18n/context";
 import { ApiError } from "@/lib/api";
 import type { Role } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const esquema = z.object({
-  dni: z.string().regex(/^\d{8}$/, "El DNI tiene 8 dígitos."),
-  password: z.string().min(1, "Escribe tu contraseña.").max(200),
-});
-type Formulario = z.infer<typeof esquema>;
+function crearEsquema(errores: Textos["ingreso"]["errores"]) {
+  return z.object({
+    dni: z.string().regex(/^\d{8}$/, errores.dni),
+    password: z.string().min(1, errores.password).max(200),
+  });
+}
+type Formulario = z.infer<ReturnType<typeof crearEsquema>>;
 
-const CARACTERISTICAS = [
-  {
-    Icono: FileUp,
-    titulo: "Registro digital del certificado",
-    texto: "El colaborador sube una foto o un PDF; no necesita transcribir datos.",
-  },
-  {
-    Icono: Sparkles,
-    titulo: "Lectura automática con IA",
-    texto:
-      "La IA extrae los datos y reglas transparentes los contrastan con la ficha del colaborador.",
-  },
-  {
-    Icono: ClipboardCheck,
-    titulo: "Decisión final de Recursos Humanos",
-    texto: "La IA sugiere; una persona confirma las fechas y aprueba o rechaza.",
-  },
-];
+// En el mismo orden que `t.ingreso.caracteristicas`.
+const ICONOS_CARACTERISTICAS = [FileUp, Sparkles, ClipboardCheck];
 
-const CUENTA: Record<Role, { titulo: string; texto: string; Icono: typeof UserRound }> = {
-  colaborador: {
-    titulo: "Entrar como colaborador",
-    texto: "Registra un certificado y consulta su estado.",
-    Icono: UserRound,
-  },
-  analista_rrhh: {
-    titulo: "Entrar como analista de RRHH",
-    texto: "Revisa solicitudes, pide lecturas y decide.",
-    Icono: UsersRound,
-  },
+const ICONO_CUENTA: Record<Role, typeof UserRound> = {
+  colaborador: UserRound,
+  analista_rrhh: UsersRound,
 };
 
-function mensajeDeError(error: unknown): string {
+function mensajeDeError(errores: Textos["ingreso"]["errores"], error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.code === "rate_limit" && error.retryAfter) {
-      return `Demasiados intentos. Vuelve a probar en ${error.retryAfter} segundos.`;
-    }
+    if (error.code === "rate_limit" && error.retryAfter) return errores.demasiados(error.retryAfter);
     return error.message;
   }
-  return "No se pudo iniciar sesión. Inténtalo de nuevo.";
+  return errores.generico;
 }
 
 export default function Ingresar() {
   const { usuario, cargando, iniciarSesion } = useAuth();
   const { data: config } = useConfig();
+  const { t } = useI18n();
+  const g = t.ingreso;
+  const esquema = useMemo(() => crearEsquema(g.errores), [g.errores]);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
@@ -109,7 +89,7 @@ export default function Ingresar() {
     }
     const version = config?.proyecto.version_terminos;
     if (!version) {
-      setError("No se pudo cargar la configuración. Recarga la página.");
+      setError(g.errores.sinConfig);
       return;
     }
     setEntrando(origen);
@@ -121,7 +101,7 @@ export default function Ingresar() {
         setAcepta(false);
         await queryClient.invalidateQueries({ queryKey: ["config"] });
       }
-      setError(mensajeDeError(causa));
+      setError(mensajeDeError(g.errores, causa));
     } finally {
       setEntrando(null);
     }
@@ -133,25 +113,22 @@ export default function Ingresar() {
         <section className="space-y-8">
           <div className="space-y-5">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-              Proyecto de concurso{concurso ? ` · ${concurso}` : ""}
+              {g.eyebrow(concurso)}
             </p>
             <h1 className="text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
-              Verificación de descansos médicos asistida por inteligencia artificial
+              {g.titulo}
             </h1>
-            <p className="max-w-xl text-base leading-7 text-muted-foreground">
-              HumanAIz digitaliza la recepción de certificados de descanso médico, realiza una
-              lectura automática con IA y deja la decisión final en manos de Recursos Humanos.
-            </p>
+            <p className="max-w-xl text-base leading-7 text-muted-foreground">{g.lead}</p>
           </div>
 
-          <div className="space-y-4 rounded-xl border bg-background p-5 shadow-sm sm:p-6">
+          <div className="space-y-4 rounded-xl border bg-background p-5 shadow-xs sm:p-6">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-base font-semibold">Acceder a la demostración</h2>
+              <h2 className="text-base font-semibold">{g.acceder}</h2>
               <Link
                 to="/como-funciona"
                 className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
               >
-                Cómo funciona
+                {g.comoFunciona}
                 <ArrowRight className="h-3.5 w-3.5" aria-hidden />
               </Link>
             </div>
@@ -174,19 +151,22 @@ export default function Ingresar() {
               />
               <div className="space-y-1">
                 <Label htmlFor="acepta" className="font-normal leading-5">
-                  Entiendo que es un proyecto de concurso sin uso real y acepto los{" "}
-                  <Link to="/terminos" className="font-medium text-primary underline underline-offset-2">
-                    términos y condiciones
-                  </Link>{" "}
-                  y la{" "}
-                  <Link to="/privacidad" className="font-medium text-primary underline underline-offset-2">
-                    política de privacidad
-                  </Link>
-                  .
+                  {g.acepto({
+                    terminos: (texto) => (
+                      <Link to="/terminos" className="font-medium text-primary underline underline-offset-2">
+                        {texto}
+                      </Link>
+                    ),
+                    privacidad: (texto) => (
+                      <Link to="/privacidad" className="font-medium text-primary underline underline-offset-2">
+                        {texto}
+                      </Link>
+                    ),
+                  })}
                 </Label>
                 {faltaAceptar && !acepta && (
                   <p id="acepta-error" className="text-xs text-red-700" role="alert">
-                    Marca esta casilla para continuar.
+                    {g.marcaCasilla}
                   </p>
                 )}
               </div>
@@ -195,19 +175,20 @@ export default function Ingresar() {
             {demo && (
               <div className="grid gap-3 sm:grid-cols-2">
                 {demo.usuarios.map((cuenta) => {
-                  const { titulo, texto, Icono } = CUENTA[cuenta.role];
+                  const { titulo, texto } = g.cuentas[cuenta.role];
+                  const Icono = ICONO_CUENTA[cuenta.role];
                   return (
                     <button
                       key={cuenta.dni}
                       type="button"
                       onClick={() => entrar(cuenta.dni, cuenta.password, cuenta.role)}
                       disabled={entrando !== null}
-                      className="group flex items-start gap-3 rounded-lg border p-3.5 text-left transition-colors hover:border-primary/60 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                      className="group flex items-start gap-3 rounded-lg border p-3.5 text-left transition-colors hover:border-primary/60 hover:bg-accent/40 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                     >
                       <Icono className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden />
                       <span className="space-y-0.5">
                         <span className="block text-sm font-semibold">
-                          {entrando === cuenta.role ? "Entrando…" : titulo}
+                          {entrando === cuenta.role ? g.entrando : titulo}
                         </span>
                         <span className="block text-xs leading-5 text-muted-foreground">{texto}</span>
                       </span>
@@ -228,9 +209,9 @@ export default function Ingresar() {
                 type="button"
                 onClick={() => setFormularioAbierto((abierto) => !abierto)}
                 aria-expanded={formularioAbierto}
-                className="inline-flex items-center gap-1 rounded text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex items-center gap-1 rounded text-sm text-muted-foreground hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
               >
-                Ingresar con DNI y contraseña
+                {g.conDni}
                 <ChevronDown
                   className={cn("h-4 w-4 transition-transform", formularioAbierto && "rotate-180")}
                   aria-hidden
@@ -245,7 +226,7 @@ export default function Ingresar() {
                 noValidate
               >
                 <div className="space-y-1.5">
-                  <Label htmlFor="dni">DNI</Label>
+                  <Label htmlFor="dni">{g.dni}</Label>
                   <Input
                     id="dni"
                     inputMode="numeric"
@@ -257,7 +238,7 @@ export default function Ingresar() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="password">Contraseña</Label>
+                  <Label htmlFor="password">{g.password}</Label>
                   <Input
                     id="password"
                     type="password"
@@ -267,7 +248,7 @@ export default function Ingresar() {
                   />
                 </div>
                 <Button type="submit" disabled={entrando !== null}>
-                  {entrando === "formulario" ? "Entrando…" : "Ingresar"}
+                  {entrando === "formulario" ? g.entrando : g.ingresar}
                 </Button>
                 {(errors.dni || errors.password) && (
                   <p className="text-xs text-red-700 sm:col-span-3">
@@ -279,9 +260,7 @@ export default function Ingresar() {
 
             <p className="flex items-start gap-2 text-xs leading-5 text-muted-foreground">
               <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-              {demo
-                ? `Cuentas de prueba compartidas: cada navegador solo ve lo que sube él mismo y todo se borra a las ${demo.retencion_horas} horas.`
-                : "No hay registro abierto: las cuentas las crea el equipo del proyecto."}
+              {demo ? g.notaDemo(demo.retencion_horas) : g.notaReal}
             </p>
           </div>
         </section>
@@ -291,16 +270,19 @@ export default function Ingresar() {
         </div>
       </div>
 
-      <ul className="mt-16 grid gap-8 border-t pt-12 sm:grid-cols-3" aria-label="Qué hace HumanAIz">
-        {CARACTERISTICAS.map(({ Icono, titulo, texto }) => (
+      <ul className="mt-16 grid gap-8 border-t pt-12 sm:grid-cols-3" aria-label={g.caracteristicasEtiqueta}>
+        {g.caracteristicas.map(({ titulo, texto }, indice) => {
+          const Icono = ICONOS_CARACTERISTICAS[indice] ?? Sparkles;
+          return (
           <li key={titulo} className="space-y-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-lg border bg-background text-primary shadow-sm">
+            <span className="flex h-10 w-10 items-center justify-center rounded-lg border bg-background text-primary shadow-xs">
               <Icono className="h-5 w-5" aria-hidden />
             </span>
             <p className="text-sm font-semibold">{titulo}</p>
             <p className="text-sm leading-6 text-muted-foreground">{texto}</p>
           </li>
-        ))}
+          );
+        })}
       </ul>
     </PublicShell>
   );

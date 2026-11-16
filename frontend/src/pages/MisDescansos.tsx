@@ -9,9 +9,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMisDescansos } from "@/hooks/queries";
+import { useI18n } from "@/i18n/context";
 
 export default function MisDescansos() {
   const { usuario } = useAuth();
+  const { t } = useI18n();
+  const m = t.inicio.mis;
   const { data, isLoading, isError } = useMisDescansos({ limit: 100 });
   const sinFicha = !usuario?.colaborador;
   const descansos = data?.items ?? [];
@@ -20,7 +23,7 @@ export default function MisDescansos() {
     <Button asChild className="gap-2">
       <Link to="/descansos/nuevo">
         <Plus className="h-4 w-4" aria-hidden />
-        Registrar descanso
+        {m.registrar}
       </Link>
     </Button>
   );
@@ -28,17 +31,14 @@ export default function MisDescansos() {
   return (
     <AppShell>
       <PageHeader
-        titulo="Mis descansos"
-        descripcion="Tus certificados registrados. Abre uno para ver el documento, la lectura con IA y la decisión de RRHH."
+        titulo={m.titulo}
+        descripcion={m.descripcion}
         accion={!sinFicha && descansos.length > 0 ? registrar : undefined}
       />
 
       {sinFicha && (
         <Alert className="mb-6">
-          <AlertDescription>
-            Tu cuenta no está vinculada a una ficha de colaborador, así que no puedes registrar
-            descansos.
-          </AlertDescription>
+          <AlertDescription>{m.sinFicha}</AlertDescription>
         </Alert>
       )}
 
@@ -46,13 +46,13 @@ export default function MisDescansos() {
         <Skeleton className="h-48 w-full" />
       ) : isError ? (
         <Alert variant="destructive">
-          <AlertDescription>No se pudieron cargar tus descansos. Recarga la página.</AlertDescription>
+          <AlertDescription>{m.error}</AlertDescription>
         </Alert>
       ) : descansos.length === 0 ? (
         <EmptyState
           icono={Inbox}
-          titulo="Aún no registras descansos"
-          descripcion="Sube una foto o un PDF de tu certificado. Recuerda: es una demo, usa solo documentos de prueba."
+          titulo={m.vacio}
+          descripcion={m.vacioDetalle}
           accion={!sinFicha ? registrar : undefined}
         />
       ) : (

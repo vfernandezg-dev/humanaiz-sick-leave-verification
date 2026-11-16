@@ -18,6 +18,7 @@ import type {
   Sesion,
   Usuario,
 } from "./types";
+import { mensajeDeError } from "@/i18n/context";
 
 const BASE = "/api/v1";
 export const LLM_KEY_HEADER = "X-LLM-Api-Key";
@@ -48,14 +49,6 @@ export class ApiError extends Error {
   }
 }
 
-const MENSAJES_SIN_SOBRE: Record<number, string> = {
-  413: "El archivo supera el tamaño máximo permitido.",
-  429: "Demasiadas solicitudes. Espera un momento antes de volver a intentarlo.",
-  502: "El servidor no está disponible en este momento. Inténtalo de nuevo.",
-  503: "El servidor no está disponible en este momento. Inténtalo de nuevo.",
-  504: "El servidor tardó demasiado en responder. Inténtalo de nuevo.",
-};
-
 async function toApiError(res: Response): Promise<ApiError> {
   const retryAfter = Number(res.headers.get("Retry-After")) || undefined;
   try {
@@ -63,18 +56,13 @@ async function toApiError(res: Response): Promise<ApiError> {
     const error = (body as { error?: Record<string, unknown> } | null)?.error;
     if (error && typeof error.code === "string" && typeof error.message === "string") {
       const detalles = Array.isArray(error.detalles) ? (error.detalles as DetalleError[]) : [];
-      return new ApiError(res.status, error.code, error.message, detalles, retryAfter);
+      const mensaje = mensajeDeError(error.code, error.message, res.status);
+      return new ApiError(res.status, error.code, mensaje, detalles, retryAfter);
     }
   } catch {
     // Respuesta sin JSON: la generó el proxy, no la API.
   }
-  return new ApiError(
-    res.status,
-    "error",
-    MENSAJES_SIN_SOBRE[res.status] ?? "No se pudo completar la operación. Inténtalo de nuevo.",
-    [],
-    retryAfter,
-  );
+  return new ApiError(res.status, "error", mensajeDeError("error", null, res.status), [], retryAfter);
 }
 
 let accessToken: string | null = null;
@@ -94,17 +82,13 @@ async function fetchSeguro(input: string, init: RequestInit): Promise<Response> 
   try {
     return await fetch(input, { credentials: "same-origin", cache: "no-store", ...init });
   } catch (error) {
-    if (error instanceof DOMException && error.name === "TimeoutError") {
-      throw new ApiError(0, "tiempo_agotado", "La operación tardó demasiado. Inténtalo de nuevo.");
-    }
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new ApiError(0, "cancelada", "Operación cancelada.");
-    }
-    throw new ApiError(
-      0,
-      "sin_conexion",
-      "No se pudo conectar con el servidor. Revisa tu conexión a internet.",
-    );
+    const code =
+      error instanceof DOMException && error.name === "TimeoutError"
+        ? "tiempo_agotado"
+        : error instanceof DOMException && error.name === "AbortError"
+          ? "cancelada"
+          : "sin_conexion";
+    throw new ApiError(0, code, mensajeDeError(code, null));
   }
 }
 
@@ -270,14 +254,15 @@ export const api = {
     }),
 
   /** Certificado ficticio con los datos del propio usuario (solo en modo demo). */
-  certificadoEjemplo: async (variante: VarianteEjemplo, formato: "jpg" | "pdf" = "jpg"): Promise<Blob> =>
-    (await send(`/demo/certificados/${variante}?formato=${formato}`)).blob(),
+  certificadoEjemplo: async (variante: VarianteEjemplo): Promise<Blob> =>
+    (await send(`/demo/certificados/${variante}`)).blob(),
 
   /** Página del documento re-codificada por el servidor (JPEG sin metadatos). */
   pagina: async (id: string, numero: number, signal?: AbortSignal): Promise<Blob> =>
     (await send(`/descansos/${id}/paginas/${numero}`, { signal })).blob(),
 
-  original: async (id: string): Promise<Blob> => (await send(`/descansos/${id}/archivo`)).blob(),
+  /** La imagen guardada (re-codificada por el servidor). */
+  imagen: async (id: string): Promise<Blob> => (await send(`/descansos/${id}/archivo`)).blob(),
 
   colaboradores: (filtros: FiltrosColaboradores = {}) =>
     json<PaginaColaboradores>(`/colaboradores${query({ ...filtros })}`),

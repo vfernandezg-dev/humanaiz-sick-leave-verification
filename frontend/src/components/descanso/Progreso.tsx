@@ -1,6 +1,6 @@
 import { Check, Loader2, X } from "lucide-react";
+import { useI18n } from "@/i18n/context";
 import { formatoFechaHora } from "@/lib/fechas";
-import { LECTURA_IA } from "@/lib/textos";
 import type { Descanso } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -51,34 +51,36 @@ function Marca({ estado, numero }: { estado: EstadoPaso; numero: number }) {
 
 /** Los tres pasos de una solicitud y en cuál está. */
 export function Progreso({ descanso, analizando }: { descanso: Descanso; analizando: boolean }) {
+  const { t } = useI18n();
+  const p = t.detalle.progreso;
   const lectura = descanso.ultimo_analisis;
   const enLectura = analizando || descanso.analisis_en_curso;
   const pendiente = descanso.estado === "Pendiente";
 
   const pasos: Paso[] = [
-    { titulo: "Registrado", detalle: formatoFechaHora(descanso.created_at), estado: "hecho" },
+    { titulo: p.registrado, detalle: formatoFechaHora(descanso.created_at), estado: "hecho" },
     {
-      titulo: "Lectura con IA",
+      titulo: p.lectura,
       detalle: enLectura
-        ? "En curso…"
+        ? p.enCurso
         : lectura
-          ? LECTURA_IA[lectura.estado_documento].etiqueta
+          ? t.comun.lectura[lectura.estado_documento].etiqueta
           : pendiente
-            ? "Opcional"
-            : "No se usó",
+            ? p.opcional
+            : p.noSeUso,
       estado: enLectura ? "en_curso" : lectura ? "hecho" : "opcional",
     },
     {
-      titulo: "Decisión de RRHH",
+      titulo: p.decision,
       detalle: pendiente
-        ? "En espera"
-        : `${descanso.estado} · ${formatoFechaHora(descanso.decidido_at)}`,
+        ? p.enEspera
+        : `${t.comun.estado[descanso.estado]} · ${formatoFechaHora(descanso.decidido_at)}`,
       estado: pendiente ? "actual" : descanso.estado === "Rechazado" ? "error" : "hecho",
     },
   ];
 
   return (
-    <ol aria-label="Progreso de la solicitud" className="grid gap-4 sm:grid-cols-3">
+    <ol aria-label={p.etiqueta} className="grid gap-4 sm:grid-cols-3">
       {pasos.map((paso, indice) => (
         <li key={paso.titulo} className="flex items-start gap-3">
           <Marca estado={paso.estado} numero={indice + 1} />

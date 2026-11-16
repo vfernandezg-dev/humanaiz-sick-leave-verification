@@ -7,8 +7,8 @@ import { AppShell } from "@/components/shell/AppShell";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDescansos, useMisDescansos } from "@/hooks/queries";
+import { useI18n } from "@/i18n/context";
 import { useLlm } from "@/llm/context";
-import { ROL } from "@/lib/textos";
 import type { EstadoDescanso } from "@/lib/types";
 
 const RECIENTES = 3;
@@ -25,6 +25,8 @@ function Cifra({ valor, etiqueta }: { valor: number | undefined; etiqueta: strin
 export default function Inicio() {
   const { usuario, esRRHH } = useAuth();
   const { credencial, abrir } = useLlm();
+  const { t } = useI18n();
+  const i = t.inicio.inicio;
   const mios = useMisDescansos({ limit: 100 });
   const pendientesRRHH = useDescansos(
     { estado: "Pendiente", limit: 1, offset: 0 },
@@ -41,15 +43,13 @@ export default function Inicio() {
       <div className="space-y-10">
         <div className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-            {usuario ? ROL[usuario.role] : ""}
+            {usuario ? t.comun.rol[usuario.role] : ""}
           </p>
           <h1 className="text-2xl font-semibold tracking-tight">
-            {usuario ? `${usuario.nombres} ${usuario.apellidos}` : "Inicio"}
+            {usuario ? `${usuario.nombres} ${usuario.apellidos}` : i.tituloSinUsuario}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {esRRHH
-              ? "Revisa las solicitudes del equipo o gestiona tus propios descansos médicos."
-              : "Registra tus certificados de descanso médico y consulta su revisión."}
+            {esRRHH ? i.descripcionRRHH : i.descripcionColaborador}
           </p>
         </div>
 
@@ -61,16 +61,14 @@ export default function Inicio() {
               </span>
               <div>
                 <p className="font-medium">
-                  {pendientesRRHH.data
-                    ? `${pendientesRRHH.data.total} ${pendientesRRHH.data.total === 1 ? "solicitud pendiente" : "solicitudes pendientes"}`
-                    : "Solicitudes del equipo"}
+                  {pendientesRRHH.data ? i.pendientes(pendientesRRHH.data.total) : i.solicitudesEquipo}
                 </p>
-                <p className="text-sm text-muted-foreground">Certificados que esperan tu decisión.</p>
+                <p className="text-sm text-muted-foreground">{i.esperanDecision}</p>
               </div>
             </div>
             <Button asChild className="gap-2">
               <Link to="/rrhh/descansos">
-                Revisar solicitudes
+                {i.revisar}
                 <ArrowRight className="h-4 w-4" aria-hidden />
               </Link>
             </Button>
@@ -79,21 +77,21 @@ export default function Inicio() {
 
         <section className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
-            <h2 className="text-base font-semibold">Mis descansos</h2>
+            <h2 className="text-base font-semibold">{i.misDescansos}</h2>
             {!sinFicha && (
               <Button asChild size="sm" className="gap-2">
                 <Link to="/descansos/nuevo">
                   <Plus className="h-4 w-4" aria-hidden />
-                  Registrar descanso
+                  {i.registrar}
                 </Link>
               </Button>
             )}
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            <Cifra valor={cuenta("Pendiente")} etiqueta="Pendientes" />
-            <Cifra valor={cuenta("Aprobado")} etiqueta="Aprobados" />
-            <Cifra valor={cuenta("Rechazado")} etiqueta="Rechazados" />
+            <Cifra valor={cuenta("Pendiente")} etiqueta={i.cifras.Pendiente} />
+            <Cifra valor={cuenta("Aprobado")} etiqueta={i.cifras.Aprobado} />
+            <Cifra valor={cuenta("Rechazado")} etiqueta={i.cifras.Rechazado} />
           </div>
 
           {mios.isLoading ? (
@@ -101,19 +99,15 @@ export default function Inicio() {
           ) : items.length === 0 ? (
             <EmptyState
               icono={Inbox}
-              titulo="Aún no registras descansos"
-              descripcion={
-                sinFicha
-                  ? "Tu cuenta no está vinculada a una ficha de colaborador, así que no puedes registrar descansos."
-                  : "Sube tu primer certificado: solo necesitas una foto o un PDF."
-              }
+              titulo={i.vacio}
+              descripcion={sinFicha ? i.sinFicha : i.primerCertificado}
             />
           ) : (
             <>
               <ListaDescansos descansos={items.slice(0, RECIENTES)} vista="propia" desde="/" />
               {items.length > RECIENTES && (
                 <Link to="/descansos" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
-                  Ver los {items.length} descansos
+                  {i.verTodos(items.length)}
                   <ArrowRight className="h-3.5 w-3.5" aria-hidden />
                 </Link>
               )}
@@ -125,29 +119,27 @@ export default function Inicio() {
           <button
             type="button"
             onClick={abrir}
-            className="flex items-start gap-3 rounded-lg border p-4 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex items-start gap-3 rounded-lg border p-4 text-left transition-colors hover:bg-muted/50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
           >
             <KeyRound className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
             <span className="space-y-0.5">
               <span className="block text-sm font-medium">
-                Clave de IA {credencial ? "· configurada" : "· opcional"}
+                {i.claveIA(Boolean(credencial))}
               </span>
               <span className="block text-xs leading-5 text-muted-foreground">
-                {credencial
-                  ? "Lista en este navegador. Puedes cambiarla u olvidarla."
-                  : "Configúrala si quieres que la IA lea los certificados. No la guardamos."}
+                {credencial ? i.claveLista : i.claveOpcional}
               </span>
             </span>
           </button>
           <Link
             to="/como-funciona"
-            className="flex items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-muted/50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
           >
             <BookOpen className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
             <span className="space-y-0.5">
-              <span className="block text-sm font-medium">Cómo funciona</span>
+              <span className="block text-sm font-medium">{i.comoFunciona}</span>
               <span className="block text-xs leading-5 text-muted-foreground">
-                Qué hace la IA, qué decide RRHH y qué pasa con tus datos. Dos minutos de lectura.
+                {i.comoFuncionaDetalle}
               </span>
             </span>
           </Link>

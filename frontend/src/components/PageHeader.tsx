@@ -15,7 +15,7 @@ export function PageHeader({ titulo, descripcion, accion, volver }: Props) {
       {volver && (
         <Link
           to={volver.to}
-          className="inline-flex items-center gap-1.5 rounded text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex items-center gap-1.5 rounded text-sm text-muted-foreground hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden />
           {volver.texto}

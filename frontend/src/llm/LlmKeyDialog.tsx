@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { CheckCircle2, ExternalLink, KeyRound, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { useConfig } from "@/hooks/queries";
 import { useToast } from "@/hooks/use-toast";
+import { useI18n } from "@/i18n/context";
 import { api, ApiError } from "@/lib/api";
 import type { ModeloDisponible, ProveedorLlm } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -47,6 +48,8 @@ function predeterminado(proveedor: ProveedorLlm | undefined): string {
 export function LlmKeyDialog({ abierto, onCambio }: Props) {
   const { data: config } = useConfig();
   const { toast } = useToast();
+  const { t } = useI18n();
+  const tc = t.clave;
   const proveedores = useMemo(() => config?.llm.proveedores ?? [], [config]);
 
   const [clave, setClave] = useState("");
@@ -58,19 +61,25 @@ export function LlmKeyDialog({ abierto, onCambio }: Props) {
 
   const configurada = llmStore.get();
 
-  // Al abrir se parte de lo configurado. La clave guardada no se vuelve a
-  // mostrar: para cambiarla hay que escribir una nueva.
-  useEffect(() => {
-    if (!abierto) return;
-    const actual = llmStore.get();
-    const inicial = proveedores.find((p) => p.id === actual?.proveedor) ?? proveedores[0];
-    setClave("");
-    setProveedorId(inicial?.id ?? "");
-    setElegidoAMano(Boolean(actual));
-    setModelo(actual?.modelo ?? predeterminado(inicial));
-    setRecordar(actual?.recordar ?? false);
-    setVerificacion({ estado: "inicial" });
-  }, [abierto, proveedores]);
+  // Al abrir (o si los proveedores llegan con el diálogo ya abierto) se parte
+  // de lo configurado. La clave guardada no se vuelve a mostrar: para cambiarla
+  // hay que escribir una nueva. Se ajusta durante el render, no en un efecto:
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+  const apertura = abierto ? proveedores : null;
+  const [aperturaPrevia, setAperturaPrevia] = useState<typeof apertura>(null);
+  if (apertura !== aperturaPrevia) {
+    setAperturaPrevia(apertura);
+    if (apertura) {
+      const actual = llmStore.get();
+      const inicial = apertura.find((p) => p.id === actual?.proveedor) ?? apertura[0];
+      setClave("");
+      setProveedorId(inicial?.id ?? "");
+      setElegidoAMano(Boolean(actual));
+      setModelo(actual?.modelo ?? predeterminado(inicial));
+      setRecordar(actual?.recordar ?? false);
+      setVerificacion({ estado: "inicial" });
+    }
+  }
 
   const proveedor = proveedores.find((p) => p.id === proveedorId);
   const detectado = detectarProveedor(clave, proveedores);
@@ -105,7 +114,7 @@ export function LlmKeyDialog({ abierto, onCambio }: Props) {
     } catch (error) {
       setVerificacion({
         estado: "error",
-        mensaje: error instanceof ApiError ? error.message : "No se pudo comprobar la clave.",
+        mensaje: error instanceof ApiError ? error.message : tc.noSePudoComprobar,
       });
     }
   };
@@ -130,14 +139,14 @@ export function LlmKeyDialog({ abierto, onCambio }: Props) {
     evento.preventDefault();
     if (!listo || !proveedor) return;
     llmStore.guardar({ proveedor: proveedor.id, modelo: modeloFinal, clave: claveEfectiva, recordar });
-    toast({ title: "Clave de IA lista", description: `${proveedor.nombre} · ${modeloFinal}` });
+    toast({ title: tc.toastLista, description: `${proveedor.nombre} · ${modeloFinal}` });
     onCambio(false);
   };
 
   const olvidar = () => {
     llmStore.olvidar();
     setClave("");
-    toast({ title: "Clave eliminada", description: "Se borró de este navegador." });
+    toast({ title: tc.toastEliminada, description: tc.toastEliminadaDetalle });
     onCambio(false);
   };
 
@@ -147,22 +156,19 @@ export function LlmKeyDialog({ abierto, onCambio }: Props) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <KeyRound className="h-5 w-5" aria-hidden />
-            Tu clave de IA
+            {tc.titulo}
           </DialogTitle>
-          <DialogDescription>
-            Opcional. Sirve una clave de cualquiera de los proveedores admitidos; el consumo se
-            cobra a tu cuenta y tú eliges el modelo.
-          </DialogDescription>
+          <DialogDescription>{tc.descripcion}</DialogDescription>
         </DialogHeader>
 
         {proveedores.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No hay proveedores de IA habilitados.</p>
+          <p className="text-sm text-muted-foreground">{tc.sinProveedores}</p>
         ) : (
           // autoComplete="off": no es un formulario de acceso; el navegador no
           // debe ofrecer guardar la clave como si fuera una contraseña.
           <form onSubmit={guardar} className="space-y-5" autoComplete="off" noValidate>
             <div className="space-y-1.5">
-              <Label htmlFor="llm-clave">Clave de API</Label>
+              <Label htmlFor="llm-clave">{tc.etiquetaClave}</Label>
               <Input
                 id="llm-clave"
                 name="llm-clave"
@@ -170,9 +176,7 @@ export function LlmKeyDialog({ abierto, onCambio }: Props) {
                 value={clave}
                 onChange={(e) => escribirClave(e.target.value)}
                 placeholder={
-                  configurada?.proveedor === proveedorId
-                    ? "Clave configurada. Pega otra para reemplazarla"
-                    : "Pega aquí tu clave"
+                  configurada?.proveedor === proveedorId ? tc.placeholderConfigurada : tc.placeholderNueva
                 }
                 autoComplete="off"
                 autoCorrect="off"
@@ -186,21 +190,19 @@ export function LlmKeyDialog({ abierto, onCambio }: Props) {
                 {detectado ? (
                   <span className="inline-flex items-center gap-1 text-emerald-700">
                     <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
-                    Parece una clave de {detectado.nombre}.
+                    {tc.pareceDe(detectado.nombre)}
                   </span>
                 ) : clave.trim() && !claveValida ? (
-                  <span className="text-red-700">
-                    La clave parece incompleta. Cópiala entera, sin espacios.
-                  </span>
+                  <span className="text-red-700">{tc.incompleta}</span>
                 ) : (
-                  "El proveedor se reconoce al pegarla."
+                  tc.seReconoce
                 )}
               </p>
             </div>
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="llm-proveedor">Proveedor</Label>
+                <Label htmlFor="llm-proveedor">{tc.etiquetaProveedor}</Label>
                 {proveedor && (
                   <a
                     href={proveedor.url_claves}
@@ -208,14 +210,14 @@ export function LlmKeyDialog({ abierto, onCambio }: Props) {
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                   >
-                    Obtener una clave
+                    {tc.obtenerClave}
                     <ExternalLink className="h-3 w-3" aria-hidden />
                   </a>
                 )}
               </div>
               <Select value={proveedorId} onValueChange={(v) => cambiarProveedor(v, true)}>
                 <SelectTrigger id="llm-proveedor">
-                  <SelectValue placeholder="Elige un proveedor" />
+                  <SelectValue placeholder={tc.elegirProveedor} />
                 </SelectTrigger>
                 <SelectContent>
                   {proveedores.map((p) => (
@@ -229,7 +231,7 @@ export function LlmKeyDialog({ abierto, onCambio }: Props) {
 
             <div className="space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <Label htmlFor="llm-modelo">Modelo</Label>
+                <Label htmlFor="llm-modelo">{tc.etiquetaModelo}</Label>
                 <Button
                   type="button"
                   variant="ghost"
@@ -241,7 +243,7 @@ export function LlmKeyDialog({ abierto, onCambio }: Props) {
                   {verificacion.estado === "cargando" && (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
                   )}
-                  Comprobar clave y cargar modelos
+                  {tc.cargarModelos}
                 </Button>
               </div>
               <Input
@@ -249,7 +251,7 @@ export function LlmKeyDialog({ abierto, onCambio }: Props) {
                 list="llm-modelos-opciones"
                 value={modelo}
                 onChange={(e) => setModelo(e.target.value)}
-                placeholder="Elige de la lista o escribe cualquier modelo"
+                placeholder={tc.placeholderModelo}
                 autoComplete="off"
                 spellCheck={false}
                 maxLength={120}
@@ -262,7 +264,7 @@ export function LlmKeyDialog({ abierto, onCambio }: Props) {
                 ))}
               </datalist>
               {sugeridos.length > 0 && (
-                <div className="flex flex-wrap gap-1.5" aria-label="Modelos sugeridos">
+                <div className="flex flex-wrap gap-1.5" aria-label={tc.modelosSugeridos}>
                   {sugeridos.map((m) => (
                     <button
                       key={m.id}
@@ -270,7 +272,7 @@ export function LlmKeyDialog({ abierto, onCambio }: Props) {
                       onClick={() => setModelo(m.id)}
                       aria-pressed={modelo === m.id}
                       className={cn(
-                        "rounded-full border px-2.5 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        "rounded-full border px-2.5 py-1 text-xs transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
                         modelo === m.id
                           ? "border-primary bg-accent text-accent-foreground"
                           : "text-muted-foreground hover:text-foreground",
@@ -278,7 +280,7 @@ export function LlmKeyDialog({ abierto, onCambio }: Props) {
                     >
                       {m.nombre}
                       {m.predeterminado && (
-                        <span className="ml-1 text-[10px] uppercase tracking-wide">· recomendado</span>
+                        <span className="ml-1 text-[10px] uppercase tracking-wide">{tc.recomendado}</span>
                       )}
                     </button>
                   ))}
@@ -288,19 +290,14 @@ export function LlmKeyDialog({ abierto, onCambio }: Props) {
                 {verificacion.estado === "ok" ? (
                   <span className="inline-flex items-center gap-1 text-emerald-700">
                     <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
-                    Clave válida · {verificacion.modelos.length}{" "}
-                    {verificacion.modelos.length === 1 ? "modelo disponible" : "modelos disponibles"}
+                    {tc.claveValida(verificacion.modelos.length)}
                   </span>
                 ) : verificacion.estado === "error" ? (
                   <span className="text-red-700">{verificacion.mensaje}</span>
                 ) : (
                   <span className="text-muted-foreground">
-                    {sugeridos.length > 0
-                      ? "Usa uno sugerido, escribe otro o carga los de tu cuenta."
-                      : "Carga los modelos de tu cuenta o escribe el que quieras usar."}
-                    {proveedor && proveedor.max_imagenes < 5
-                      ? ` Este proveedor lee hasta ${proveedor.max_imagenes} páginas.`
-                      : ""}
+                    {sugeridos.length > 0 ? tc.ayudaConSugeridos : tc.ayudaSinSugeridos}
+                    {proveedor && proveedor.max_imagenes < 5 ? tc.maxPaginas(proveedor.max_imagenes) : ""}
                   </span>
                 )}
               </p>
@@ -314,31 +311,28 @@ export function LlmKeyDialog({ abierto, onCambio }: Props) {
                 className="mt-0.5"
               />
               <Label htmlFor="llm-recordar" className="font-normal leading-5">
-                Recordar en esta pestaña
-                <span className="block text-xs text-muted-foreground">
-                  Sin marcar, se pierde al recargar. Marcada, dura hasta cerrar la pestaña o tu
-                  sesión. No la marques en un equipo compartido.
-                </span>
+                {tc.recordar}
+                <span className="block text-xs text-muted-foreground">{tc.recordarAyuda}</span>
               </Label>
             </div>
 
             <ul className="space-y-1.5 rounded-lg bg-muted/60 p-3 text-xs text-muted-foreground">
               <li className="flex gap-2">
                 <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-700" aria-hidden />
-                No la guardamos: viaja cifrada en cada consulta, se usa una vez y se descarta.
+                {tc.seguridadNoGuardamos}
               </li>
               <li className="flex gap-2">
                 <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-700" aria-hidden />
-                Es una demo: usa una clave con límite de gasto y no la compartas.
+                {tc.seguridadDemo}
               </li>
             </ul>
 
             <DialogFooter className="gap-2 sm:justify-between">
               <Button type="button" variant="ghost" onClick={olvidar} disabled={!configurada}>
-                Olvidar clave
+                {tc.olvidar}
               </Button>
               <Button type="submit" disabled={!listo}>
-                Guardar
+                {tc.guardar}
               </Button>
             </DialogFooter>
           </form>

@@ -19,6 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Indicador } from "@/components/Indicador";
 import { useColaboradores, useFacetas } from "@/hooks/queries";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useI18n } from "@/i18n/context";
 import { cn } from "@/lib/utils";
 
 const POR_PAGINA = 50;
@@ -47,6 +48,7 @@ function Filtro({
   onCambio: (valor: string) => void;
   opciones: { valor: string; texto: string }[];
 }) {
+  const { t } = useI18n();
   return (
     <div>
       <Label htmlFor={id} className="sr-only">
@@ -57,7 +59,7 @@ function Filtro({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={TODOS}>{etiqueta}: todas</SelectItem>
+          <SelectItem value={TODOS}>{t.rrhh.colaboradores.todas(etiqueta)}</SelectItem>
           {opciones.map((o) => (
             <SelectItem key={o.valor} value={o.valor}>
               {o.texto}
@@ -72,6 +74,8 @@ function Filtro({
 const opciones = (valores: string[] | undefined) => (valores ?? []).map((v) => ({ valor: v, texto: v }));
 
 export default function Colaboradores() {
+  const { t } = useI18n();
+  const tc = t.rrhh.colaboradores;
   const [filtros, setFiltros] = useState<Filtros>(SIN_FILTROS);
   const [offset, setOffset] = useState(0);
   const busqueda = useDebounce(filtros.busqueda.trim());
@@ -97,60 +101,60 @@ export default function Colaboradores() {
   return (
     <AppShell>
       <PageHeader
-        titulo="Colaboradores"
-        descripcion="Padrón del personal, de solo lectura. En la demo todas las personas son ficticias."
+        titulo={tc.titulo}
+        descripcion={tc.descripcion}
       />
 
       <div className="mb-6 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
         <div className="relative sm:col-span-2 lg:col-span-1">
           <Label htmlFor="busqueda" className="sr-only">
-            Buscar por DNI o nombre
+            {tc.buscar}
           </Label>
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <Input
             id="busqueda"
             maxLength={100}
-            placeholder="DNI o nombre"
+            placeholder={tc.placeholderBuscar}
             className="pl-9"
             value={filtros.busqueda}
             onChange={(e) => cambiar("busqueda")(e.target.value)}
           />
         </div>
-        <Filtro id="area" etiqueta="Área" valor={filtros.area} onCambio={cambiar("area")} opciones={opciones(facetas?.areas_operacion)} />
-        <Filtro id="contrato" etiqueta="Contrato" valor={filtros.contrato} onCambio={cambiar("contrato")} opciones={opciones(facetas?.tipos_contrato)} />
-        <Filtro id="categoria" etiqueta="Categoría" valor={filtros.categoria} onCambio={cambiar("categoria")} opciones={opciones(["A", "B", "C", "D"])} />
+        <Filtro id="area" etiqueta={tc.filtroArea} valor={filtros.area} onCambio={cambiar("area")} opciones={opciones(facetas?.areas_operacion)} />
+        <Filtro id="contrato" etiqueta={tc.filtroContrato} valor={filtros.contrato} onCambio={cambiar("contrato")} opciones={opciones(facetas?.tipos_contrato)} />
+        <Filtro id="categoria" etiqueta={tc.filtroCategoria} valor={filtros.categoria} onCambio={cambiar("categoria")} opciones={opciones(["A", "B", "C", "D"])} />
         <Filtro
           id="activo"
-          etiqueta="Estado"
+          etiqueta={tc.filtroEstado}
           valor={filtros.activo}
           onCambio={cambiar("activo")}
           opciones={[
-            { valor: "si", texto: "Activos" },
-            { valor: "no", texto: "Inactivos" },
+            { valor: "si", texto: tc.activos },
+            { valor: "no", texto: tc.inactivos },
           ]}
         />
       </div>
 
       {isError ? (
         <Alert variant="destructive">
-          <AlertDescription>No se pudo cargar el padrón. Recarga la página.</AlertDescription>
+          <AlertDescription>{tc.errorCarga}</AlertDescription>
         </Alert>
       ) : isLoading ? (
         <Skeleton className="h-64 w-full" />
       ) : colaboradores.length === 0 ? (
-        <EmptyState icono={Users} titulo="Sin resultados" descripcion="Ningún colaborador coincide con los filtros." />
+        <EmptyState icono={Users} titulo={tc.sinResultados} descripcion={tc.sinCoincidencias} />
       ) : (
         <div className={cn("space-y-4 transition-opacity", isFetching && "opacity-70")}>
           <div className="overflow-x-auto rounded-lg border">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead>Colaborador</TableHead>
-                  <TableHead>Área</TableHead>
-                  <TableHead className="hidden md:table-cell">Contrato</TableHead>
-                  <TableHead>Sede</TableHead>
-                  <TableHead className="hidden sm:table-cell">Cat.</TableHead>
-                  <TableHead className="text-right">Estado</TableHead>
+                  <TableHead>{tc.columnas.colaborador}</TableHead>
+                  <TableHead>{tc.columnas.area}</TableHead>
+                  <TableHead className="hidden md:table-cell">{tc.columnas.contrato}</TableHead>
+                  <TableHead>{tc.columnas.sede}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{tc.columnas.categoria}</TableHead>
+                  <TableHead className="text-right">{tc.columnas.estado}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -160,14 +164,14 @@ export default function Colaboradores() {
                       <p className="font-medium">
                         {c.apellidos}, {c.nombres}
                       </p>
-                      <p className="text-xs text-muted-foreground">DNI {c.dni}</p>
+                      <p className="text-xs text-muted-foreground">{tc.dni(c.dni)}</p>
                     </TableCell>
                     <TableCell>{c.area_operacion}</TableCell>
                     <TableCell className="hidden md:table-cell">{c.tipo_contrato}</TableCell>
                     <TableCell>{c.sede}</TableCell>
                     <TableCell className="hidden sm:table-cell">{c.categoria}</TableCell>
                     <TableCell className="text-right">
-                      <Indicador tono={c.activo ? "ok" : "neutro"}>{c.activo ? "Activo" : "Inactivo"}</Indicador>
+                      <Indicador tono={c.activo ? "ok" : "neutro"}>{c.activo ? tc.activo : tc.inactivo}</Indicador>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -175,7 +179,7 @@ export default function Colaboradores() {
             </Table>
           </div>
           {data && (
-            <Paginacion total={data.total} limit={data.limit} offset={data.offset} onCambio={setOffset} etiqueta="colaboradores" />
+            <Paginacion total={data.total} limit={data.limit} offset={data.offset} onCambio={setOffset} etiqueta={tc.plural} />
           )}
         </div>
       )}

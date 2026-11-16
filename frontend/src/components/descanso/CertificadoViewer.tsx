@@ -3,43 +3,46 @@ import { ChevronLeft, ChevronRight, Download, FileWarning } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { useI18n } from "@/i18n/context";
 import { api, ApiError } from "@/lib/api";
 import type { Descanso } from "@/lib/types";
 
-const EXTENSION: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "application/pdf": "pdf",
-};
-
 /**
- * Páginas del certificado. Se piden con el token de sesión y se muestran desde
- * un blob: un `<img src>` normal no puede enviar la cabecera Authorization, y
- * los documentos no tienen URL pública.
+ * Imagen del certificado. Se pide con el token de sesión y se muestra desde un
+ * blob: un `<img src>` normal no puede enviar la cabecera Authorization, y los
+ * documentos no tienen URL pública. Los descansos antiguos pueden tener varias
+ * páginas (cuando se admitían PDF), por eso se conserva la paginación.
  */
 export function CertificadoViewer({ descanso }: { descanso: Descanso }) {
   const { toast } = useToast();
+  const { t } = useI18n();
+  const v = t.detalle.visor;
   const total = descanso.archivo.paginas;
   const [pagina, setPagina] = useState(1);
-  const [url, setUrl] = useState<string | null>(null);
-  const [fallo, setFallo] = useState(false);
   const [descargando, setDescargando] = useState(false);
+  // El resultado se guarda junto a la página que lo pidió: mientras llega la
+  // siguiente, la anterior simplemente no coincide y se muestra el esqueleto,
+  // sin tener que vaciar el estado al empezar cada carga.
+  const clave = `${descanso.id}:${pagina}`;
+  const [carga, setCarga] = useState<{ clave: string; url: string | null; fallo: boolean } | null>(null);
+  const actual = carga?.clave === clave ? carga : null;
+  const url = actual?.url ?? null;
+  const fallo = actual?.fallo ?? false;
 
   useEffect(() => {
     const control = new AbortController();
     let creada: string | null = null;
-    setUrl(null);
-    setFallo(false);
     api
       .pagina(descanso.id, pagina, control.signal)
       .then((blob) => {
         if (control.signal.aborted) return;
         creada = URL.createObjectURL(blob);
-        setUrl(creada);
+        setCarga({ clave: `${descanso.id}:${pagina}`, url: creada, fallo: false });
       })
       .catch((error: unknown) => {
-        if (!(error instanceof ApiError && error.code === "cancelada")) setFallo(true);
+        if (!(error instanceof ApiError && error.code === "cancelada")) {
+          setCarga({ clave: `${descanso.id}:${pagina}`, url: null, fallo: true });
+        }
       });
     return () => {
       control.abort();
@@ -50,17 +53,17 @@ export function CertificadoViewer({ descanso }: { descanso: Descanso }) {
   const descargar = async () => {
     setDescargando(true);
     try {
-      const blob = await api.original(descanso.id);
+      const blob = await api.imagen(descanso.id);
       const temporal = URL.createObjectURL(blob);
       const enlace = document.createElement("a");
       enlace.href = temporal;
-      enlace.download = `certificado-${descanso.id.slice(0, 8)}.${EXTENSION[descanso.archivo.mime] ?? "bin"}`;
+      enlace.download = `certificado-${descanso.id.slice(0, 8)}.jpg`;
       enlace.click();
       window.setTimeout(() => URL.revokeObjectURL(temporal), 1000);
     } catch (error) {
       toast({
-        title: "No se pudo descargar",
-        description: error instanceof ApiError ? error.message : "Inténtalo de nuevo.",
+        title: v.noSeDescargo,
+        description: error instanceof ApiError ? error.message : t.detalle.intentaDeNuevo,
         variant: "destructive",
       });
     } finally {
@@ -74,12 +77,12 @@ export function CertificadoViewer({ descanso }: { descanso: Descanso }) {
         {fallo ? (
           <div className="flex flex-col items-center gap-2 p-6 text-sm text-muted-foreground">
             <FileWarning className="h-6 w-6" aria-hidden />
-            No se pudo cargar el documento.
+            {v.noCargo}
           </div>
         ) : url ? (
           <img
             src={url}
-            alt={`Certificado médico, página ${pagina} de ${total}`}
+            alt={v.alt(pagina, total)}
             className="max-h-[36rem] w-full object-contain"
           />
         ) : (
@@ -95,30 +98,28 @@ export function CertificadoViewer({ descanso }: { descanso: Descanso }) {
               className="h-8 w-8"
               onClick={() => setPagina((p) => Math.max(1, p - 1))}
               disabled={pagina === 1}
-              aria-label="Página anterior"
+              aria-label={v.paginaAnterior}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="px-1 text-xs text-muted-foreground">
-              Página {pagina} de {total}
-            </span>
+            <span className="px-1 text-xs text-muted-foreground">{v.pagina(pagina, total)}</span>
             <Button
               variant="ghost"
               size="icon"
               className="h-8 w-8"
               onClick={() => setPagina((p) => Math.min(total, p + 1))}
               disabled={pagina === total}
-              aria-label="Página siguiente"
+              aria-label={v.paginaSiguiente}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         ) : (
-          <span className="text-xs text-muted-foreground">Vista optimizada, sin metadatos</span>
+          <span className="text-xs text-muted-foreground">{v.optimizada}</span>
         )}
         <Button variant="ghost" size="sm" className="gap-2" onClick={descargar} disabled={descargando}>
           <Download className="h-4 w-4" aria-hidden />
-          {descargando ? "Descargando…" : "Descargar original"}
+          {descargando ? v.descargando : v.descargar}
         </Button>
       </figcaption>
     </figure>

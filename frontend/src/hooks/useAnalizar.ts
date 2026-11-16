@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
+import { textosActuales } from "@/i18n/context";
 import { api, ApiError } from "@/lib/api";
-import { LECTURA_IA } from "@/lib/textos";
 import type { Analisis, Descanso } from "@/lib/types";
 import { useLlm } from "@/llm/context";
 import { useRefrescarDescansos } from "./queries";
@@ -16,8 +16,9 @@ const ERRORES_DE_CLAVE = new Set([
 ]);
 
 function avisoListo(analisis: Pick<Analisis, "estado_documento">) {
-  const lectura = LECTURA_IA[analisis.estado_documento];
-  return { title: `Lectura con IA: ${lectura.etiqueta.toLowerCase()}`, description: lectura.descripcion };
+  const t = textosActuales();
+  const lectura = t.comun.lectura[analisis.estado_documento];
+  return { title: t.detalle.avisos.lista(lectura.etiqueta), description: lectura.descripcion };
 }
 
 /**
@@ -32,11 +33,9 @@ export function useAnalizar() {
 
   const analizar = useCallback(
     async (descanso: Pick<Descanso, "id">): Promise<boolean> => {
+      const avisos = textosActuales().detalle.avisos;
       if (!credencial) {
-        toast({
-          title: "Configura tu clave de IA",
-          description: "La lectura con IA es opcional y usa tu propia clave.",
-        });
+        toast({ title: avisos.configuraClave, description: avisos.configuraClaveDetalle });
         abrir();
         return false;
       }
@@ -54,7 +53,7 @@ export function useAnalizar() {
         const apiError =
           error instanceof ApiError
             ? error
-            : new ApiError(0, "error", "No se pudo completar el análisis.");
+            : new ApiError(0, "error", avisos.falloGenerico);
 
         // Si se cortó la conexión o respondió el proxy, el servidor pudo
         // terminar igual: el análisis ya está pagado y se guarda siempre.
@@ -67,14 +66,11 @@ export function useAnalizar() {
           }
         }
         if (apiError.code === "analisis_en_curso") {
-          toast({
-            title: "Lectura en curso",
-            description: "Este documento ya se está leyendo con IA. El resultado aparecerá aquí.",
-          });
+          toast({ title: avisos.enCurso, description: avisos.enCursoDetalle });
           return false;
         }
         toast({
-          title: "No se pudo completar la lectura",
+          title: avisos.fallo,
           description: apiError.message,
           variant: "destructive",
         });

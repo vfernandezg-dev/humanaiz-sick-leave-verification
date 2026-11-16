@@ -4,7 +4,7 @@
 > no tiene validez médica, legal ni laboral. No se deben subir datos ni documentos reales.
 
 Registro y verificación asistida de descansos médicos. Los colaboradores suben su certificado
-(foto o PDF), Recursos Humanos lo revisa y decide, y cualquiera de los dos puede pedir una
+(una foto o captura), Recursos Humanos lo revisa y decide, y cualquiera de los dos puede pedir una
 segunda lectura a un modelo de IA **usando su propia clave** (BYOK).
 
 - **Sin dependencias propietarias.** FastAPI + PostgreSQL + React, todo en contenedores.
@@ -146,7 +146,8 @@ volumen `caddy_data` guarda los certificados TLS; consérvalo entre despliegues.
 |---|---|
 | Ver logs | `docker compose logs -f api` (JSON, una línea por evento, sin cabeceras; rotan a los 30 MB por servicio) |
 | Purga manual | `docker compose exec api humanaiz purge` (también corre sola cada 15 min: demo caducada, sesiones, bitácora antigua y archivos huérfanos) |
-| Cambiar límites de uso | Variables `RATE_LIMIT_*` del `.env` |
+| Retirar ya un contenido indebido | `docker compose exec api humanaiz delete-descanso <id> --motivo contenido_indebido` (el id es el de la URL `/descansos/<id>`; queda en la bitácora) |
+| Cambiar límites de uso | Variables `RATE_LIMIT_*` y `STORAGE_MAX_MB` del `.env` |
 | Cerrar todas las sesiones | Cambia `JWT_SECRET` y borra la tabla `sessions` |
 | Añadir o quitar un modelo de IA | `backend/src/humanaiz/scanning/catalog.py` (va en código para que pase por revisión) |
 | Escalar | Ver abajo |
@@ -234,18 +235,71 @@ con una entidad inventada, sin logos oficiales y con marca de agua «MUESTRA · 
 muestras precargadas de la demo usan el mismo generador. Tipografía DejaVu (licencia en
 `backend/src/humanaiz/assets/fuentes/`).
 
-### Documentos
+### Imágenes
 
-Se aceptan JPG, PNG, WebP y PDF de hasta 10 MB y 5 páginas. El tipo se decide por el contenido,
-no por el nombre ni por lo que declare el navegador. Al subir, cada documento se decodifica en
-un proceso aparte con límite de tiempo y memoria y se re-codifica a JPEG sin metadatos (se
-elimina el EXIF, incluida la ubicación). Eso es lo que se muestra en pantalla y lo que se envía
-al modelo. El original se conserva como evidencia y solo se sirve como descarga. No existen
-URL públicas: todo documento pasa por un endpoint que comprueba quién lo pide.
+Solo se aceptan **imágenes JPG, PNG o WebP de hasta 5 MB**, con al menos 400 px de lado.
+PDF, HEIC, GIF, SVG, documentos, comprimidos y cualquier otra cosa se rechazan, y el servidor no
+instala ninguna librería de PDF (menos superficie de ataque).
+
+| Capa | Qué hace |
+|---|---|
+| Navegador | Reduce las fotos grandes a 2400 px antes de subirlas (ahorra datos y CPU). No es una defensa: el servidor lo vuelve a validar todo |
+| Proxy (Caddy) | Corta cualquier cuerpo de más de 6 MB antes de que llegue a la API |
+| API, antes de leer | Sesión, límites de uso y cuotas (ver abajo) |
+| API, al recibir | El tipo se decide por los bytes iniciales, no por el nombre ni por lo que declare el navegador |
+| Proceso aislado | Decodifica la imagen con límite de tiempo, memoria y píxeles (25 MP) y la re-codifica a JPEG |
+| Almacenamiento | Solo se guarda esa copia re-codificada (máx. 2400 px, sin metadatos). El archivo original se descarta: lo que llevara escondido (EXIF/GPS, datos añadidos al final, otro formato camuflado) no llega a disco |
+
+No existen URL públicas: toda imagen pasa por un endpoint que comprueba quién la pide, y en la
+demo cada navegador solo ve lo que sube él mismo. Así la demo no sirve para alojar ni repartir
+contenido, que es el principal incentivo para subir material indebido. Lo que se sube caduca a las
+24 horas.
+
+**Lo que el código no puede garantizar.** No hay moderación automática de contenido: el sistema
+garantiza que solo entra una imagen limpia, pero no qué muestra esa imagen. Eso lo cubren los
+términos (contenido prohibido, eliminación sin aviso, colaboración con autoridades), la casilla
+que se confirma en cada subida y la caducidad a las 24 horas. Si hiciera falta retirar algo antes,
+basta con `humanaiz delete-descanso <id>` (ver Operación).
+
+### Límites de uso y VPN
+
+Cada límite se aplica en capas: **por usuario** (en la demo, por navegador), **por IP** (el triple,
+porque muchas personas comparten IP) y, donde hay recursos del servidor en juego, **un tope total**
+común a todos. Las dos primeras capas se esquivan cambiando de navegador o usando una VPN; el tope
+total no depende de quién llama y es el que protege de verdad al servidor.
+
+| Acción | Por usuario | Por IP | Total |
+|---|---|---|---|
+| Subir imagen o generar un ejemplo | 10/hora | 30/hora | 300/hora |
+| Comprobar una clave de IA | 30/hora | 90/hora | 300/hora |
+| Leer con IA | 30/hora | 90/hora | — (cada lectura la paga la clave de quien la pide; la concurrencia ya está acotada) |
+| Ingresar | 5/min por IP y DNI | 20/min | 30/hora por cuenta real desde cualquier IP |
+
+Además: como mucho 5 descansos por visitante de la demo, 2 GB de imágenes en total
+(`STORAGE_MAX_MB`), 500 MB libres mínimos en disco y 2 imágenes procesándose a la vez. Si alguien
+rota IPs para agotar el tope total, la demo responde «vuelve más tarde» a todos durante esa hora,
+pero el servidor no se satura. Frente a un ataque distribuido de verdad (DDoS), la protección
+corresponde a la red: un proxy o CDN delante del servidor.
+
+### Idiomas
+
+La interfaz está en **español e inglés**. Al entrar se usa el idioma del navegador (si no es
+ninguno de los dos, inglés), y el selector ES / EN de la cabecera lo cambia y lo recuerda en
+`localStorage` (`hz_idioma`).
+
+- Los textos viven en `frontend/src/i18n/textos/`, un archivo por sección con las dos versiones
+  juntas. `definir()` toma el español como referencia: si falta una traducción o cambia la firma
+  de un texto con datos, **no compila**.
+- Los textos legales tienen una versión completa por idioma; en inglés se indica que prevalece la
+  versión en español.
+- La API responde en español. El cliente traduce sus errores por código y las comprobaciones de
+  la lectura con IA por el código de cada regla, así que el inglés no depende del servidor.
+- Los certificados de ejemplo siguen en español en ambos idiomas, como lo estaría un documento
+  peruano real.
 
 ## Desarrollo local
 
-Requisitos: Docker, [uv](https://docs.astral.sh/uv/), Node 24 y pnpm 11.
+Requisitos: Docker, [uv](https://docs.astral.sh/uv/), Node 24 o superior (las imágenes usan Node 26 LTS) y pnpm 11.
 
 ```bash
 # 1. Base de datos (127.0.0.1:54329; cámbialo con DEV_DB_PORT si está ocupado)

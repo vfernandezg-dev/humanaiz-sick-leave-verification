@@ -12,20 +12,16 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDescansos } from "@/hooks/queries";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useI18n } from "@/i18n/context";
 import type { EstadoDescanso } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const POR_PAGINA = 20;
 type Filtro = EstadoDescanso | "todos";
 
-const VACIO: Record<Filtro, string> = {
-  Pendiente: "No hay solicitudes pendientes. Todo al día.",
-  Aprobado: "Todavía no hay descansos aprobados.",
-  Rechazado: "Todavía no hay descansos rechazados.",
-  todos: "Aún no hay solicitudes registradas.",
-};
-
 export default function Solicitudes() {
+  const { t } = useI18n();
+  const ts = t.rrhh.solicitudes;
   const [estado, setEstado] = useState<Filtro>("Pendiente");
   const [dni, setDni] = useState("");
   const [sede, setSede] = useState("");
@@ -48,13 +44,13 @@ export default function Solicitudes() {
   return (
     <AppShell>
       <PageHeader
-        titulo="Solicitudes"
-        descripcion="Certificados de todo el equipo. Abre uno para ver el documento, pedir una lectura con IA y decidir."
+        titulo={ts.titulo}
+        descripcion={ts.descripcion}
       />
 
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <Segmentado
-          etiqueta="Filtrar por estado"
+          etiqueta={ts.filtrarPorEstado}
           valor={estado}
           onCambio={(valor) => {
             setEstado(valor);
@@ -65,7 +61,7 @@ export default function Solicitudes() {
               valor: "Pendiente",
               texto: (
                 <>
-                  Pendientes
+                  {ts.pendientes}
                   {totalPendientes !== undefined && totalPendientes > 0 && (
                     <span className="rounded-full bg-amber-100 px-1.5 text-xs font-medium text-amber-900">
                       {totalPendientes}
@@ -74,22 +70,22 @@ export default function Solicitudes() {
                 </>
               ),
             },
-            { valor: "Aprobado", texto: "Aprobadas" },
-            { valor: "Rechazado", texto: "Rechazadas" },
-            { valor: "todos", texto: "Todas" },
+            { valor: "Aprobado", texto: ts.aprobadas },
+            { valor: "Rechazado", texto: ts.rechazadas },
+            { valor: "todos", texto: ts.todas },
           ]}
         />
         <div className="grid grid-cols-2 gap-2 lg:w-96">
           <div className="relative">
             <Label htmlFor="filtro-dni" className="sr-only">
-              Buscar por DNI
+              {ts.buscarPorDni}
             </Label>
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
             <Input
               id="filtro-dni"
               inputMode="numeric"
               maxLength={8}
-              placeholder="DNI"
+              placeholder={ts.placeholderDni}
               className="pl-9"
               value={dni}
               onChange={(e) => {
@@ -100,12 +96,12 @@ export default function Solicitudes() {
           </div>
           <div>
             <Label htmlFor="filtro-sede" className="sr-only">
-              Buscar por sede
+              {ts.buscarPorSede}
             </Label>
             <Input
               id="filtro-sede"
               maxLength={100}
-              placeholder="Sede"
+              placeholder={ts.placeholderSede}
               value={sede}
               onChange={(e) => {
                 setSede(e.target.value);
@@ -120,13 +116,13 @@ export default function Solicitudes() {
         <Skeleton className="h-64 w-full" />
       ) : isError ? (
         <Alert variant="destructive">
-          <AlertDescription>No se pudieron cargar las solicitudes. Recarga la página.</AlertDescription>
+          <AlertDescription>{ts.errorCarga}</AlertDescription>
         </Alert>
       ) : descansos.length === 0 ? (
         <EmptyState
           icono={Inbox}
-          titulo={buscando ? "Sin resultados" : VACIO[estado]}
-          descripcion={buscando ? "Ninguna solicitud coincide con la búsqueda." : undefined}
+          titulo={buscando ? ts.sinResultados : ts.vacio[estado]}
+          descripcion={buscando ? ts.sinCoincidencias : undefined}
         />
       ) : (
         <div className={cn("space-y-4 transition-opacity", isFetching && "opacity-70")}>
@@ -137,7 +133,7 @@ export default function Solicitudes() {
               limit={data.limit}
               offset={data.offset}
               onCambio={setOffset}
-              etiqueta="solicitudes"
+              etiqueta={ts.plural}
             />
           )}
         </div>

@@ -38,9 +38,9 @@ export function Segmentado<T extends string>({
             aria-checked={activa}
             onClick={() => onCambio(opcion.valor)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
               activa
-                ? "bg-background font-medium text-foreground shadow-sm"
+                ? "bg-background font-medium text-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >

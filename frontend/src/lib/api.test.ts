@@ -186,7 +186,7 @@ describe("errores", () => {
     simularFetch([new Response("<html>413</html>", { status: 413 })]);
     await expect(api.crearDescanso(new File(["x"], "c.jpg"), "Lima")).rejects.toMatchObject({
       status: 413,
-      message: "El archivo supera el tamaño máximo permitido.",
+      message: "La imagen supera el tamaño máximo permitido.",
     });
     simularFetch([new Response("Bad Gateway", { status: 502 })]);
     const error = (await api.descanso("d1").catch((e: unknown) => e)) as ApiError;
@@ -216,10 +216,10 @@ describe("peticiones", () => {
 
   it("sube el certificado como multipart sin fijar Content-Type a mano", async () => {
     const llamadas = simularFetch([respuesta(201, { id: "d1" })]);
-    await api.crearDescanso(new File(["contenido"], "cert.pdf", { type: "application/pdf" }), " Lima ");
+    await api.crearDescanso(new File(["contenido"], "cert.jpg", { type: "image/jpeg" }), " Lima ");
     const form = llamadas[0]?.body as FormData;
     expect(form.get("sede")).toBe("Lima");
-    expect((form.get("archivo") as File).name).toBe("cert.pdf");
+    expect((form.get("archivo") as File).name).toBe("cert.jpg");
     // El navegador añade el boundary: si se fija a mano, el servidor no puede leerlo.
     expect(llamadas[0]?.headers.has("Content-Type")).toBe(false);
   });

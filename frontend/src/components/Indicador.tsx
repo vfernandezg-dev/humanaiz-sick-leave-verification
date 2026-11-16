@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { ESTADO, type Tono } from "@/lib/textos";
+import { useI18n } from "@/i18n/context";
+import { TONO_ESTADO, type Tono } from "@/lib/textos";
 import { TONO_PUNTO } from "@/lib/tonos";
 import type { EstadoDescanso } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -15,6 +16,6 @@ export function Indicador({ tono, children }: { tono: Tono; children: ReactNode 
 
 /** Estado de la solicitud: es la decisión de RRHH, no la lectura con IA. */
 export function EstadoBadge({ estado }: { estado: EstadoDescanso }) {
-  const { etiqueta, tono } = ESTADO[estado];
-  return <Indicador tono={tono}>{etiqueta}</Indicador>;
+  const { t } = useI18n();
+  return <Indicador tono={TONO_ESTADO[estado]}>{t.comun.estado[estado]}</Indicador>;
 }

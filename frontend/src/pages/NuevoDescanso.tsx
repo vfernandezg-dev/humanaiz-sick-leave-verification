@@ -10,18 +10,43 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useConfig, useCrearDescanso } from "@/hooks/queries";
 import { useToast } from "@/hooks/use-toast";
+import { useI18n, type Textos } from "@/i18n/context";
 import { api, ApiError, type VarianteEjemplo } from "@/lib/api";
+import { prepararImagen, type MotivoRechazo } from "@/lib/imagen";
 import { cn } from "@/lib/utils";
 import { useLlm } from "@/llm/context";
 
 const MB = 1024 * 1024;
-const EJEMPLOS: { variante: VarianteEjemplo; texto: string }[] = [
-  { variante: "valido", texto: "Válido" },
-  { variante: "observado", texto: "Con observaciones" },
-  { variante: "otra-persona", texto: "De otra persona" },
-  { variante: "citt", texto: "Formato CITT" },
+const EJEMPLOS: { variante: VarianteEjemplo; texto: keyof Textos["registro"]["ejemplos"] }[] = [
+  { variante: "valido", texto: "valido" },
+  { variante: "observado", texto: "observado" },
+  { variante: "otra-persona", texto: "otraPersona" },
+  { variante: "citt", texto: "citt" },
 ];
-const TIPOS_POR_DEFECTO = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+const TIPOS_POR_DEFECTO = ["image/jpeg", "image/png", "image/webp"];
+const EXTENSIONES = ".jpg,.jpeg,.png,.webp";
+
+function mensajeRechazo(
+  r: Textos["registro"]["rechazo"],
+  motivo: MotivoRechazo,
+  maxMb: number,
+  minLado: number,
+): string {
+  switch (motivo) {
+    case "pdf":
+      return r.pdf;
+    case "heic":
+      return r.heic;
+    case "pesada":
+      return r.pesada(maxMb);
+    case "pequena":
+      return r.pequena(minLado);
+    case "ilegible":
+      return r.ilegible;
+    default:
+      return r.formato;
+  }
+}
 
 function Paso({ numero, titulo, children }: { numero: number; titulo: string; children: React.ReactNode }) {
   return (
@@ -42,6 +67,8 @@ export default function NuevoDescanso() {
   const { credencial, abrir: abrirClave } = useLlm();
   const { data: config } = useConfig();
   const { toast } = useToast();
+  const { t } = useI18n();
+  const r = t.registro;
   const navigate = useNavigate();
   const crear = useCrearDescanso();
 
@@ -53,25 +80,39 @@ export default function NuevoDescanso() {
   const [faltaConfirmar, setFaltaConfirmar] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generando, setGenerando] = useState<VarianteEjemplo | null>(null);
+  const [preparando, setPreparando] = useState(false);
+  const [reducida, setReducida] = useState(false);
 
   if (!usuario?.colaborador) return <Navigate to="/descansos" replace />;
 
   const tipos = config?.carga.tipos_mime ?? TIPOS_POR_DEFECTO;
-  const maxBytes = config?.carga.max_bytes ?? 10 * MB;
-  const maxPaginas = config?.carga.max_paginas_pdf ?? 5;
+  const maxBytes = config?.carga.max_bytes ?? 5 * MB;
+  const maxMb = Math.floor(maxBytes / MB);
+  const minLado = config?.carga.min_lado_px ?? 400;
+  const maxLado = config?.carga.max_lado_px ?? 2400;
 
-  // Comprobaciones de cortesía: quien valida de verdad el archivo es el servidor.
-  const elegir = (elegido: File | null) => {
+  // Comprobaciones de cortesía y reducción de fotos grandes: quien valida de
+  // verdad la imagen es el servidor.
+  const elegir = async (elegido: File | null) => {
     setErrorArchivo(null);
-    if (elegido && elegido.size > maxBytes) {
-      setErrorArchivo(`El archivo pesa más de ${Math.floor(maxBytes / MB)} MB.`);
+    setReducida(false);
+    if (!elegido) {
+      setArchivo(null);
       return;
     }
-    if (elegido && elegido.type && !tipos.includes(elegido.type)) {
-      setErrorArchivo("Formato no admitido. Sube una imagen JPG, PNG o WebP, o un PDF.");
-      return;
+    setPreparando(true);
+    try {
+      const resultado = await prepararImagen(elegido, { tipos, maxBytes, minLado, maxLado });
+      if (resultado.ok) {
+        setArchivo(resultado.archivo);
+        setReducida(resultado.reducida);
+      } else {
+        setArchivo(null);
+        setErrorArchivo(mensajeRechazo(r.rechazo, resultado.motivo, maxMb, minLado));
+      }
+    } finally {
+      setPreparando(false);
     }
-    setArchivo(elegido);
   };
 
   // Certificado ficticio generado por el servidor con los datos del propio usuario.
@@ -81,10 +122,11 @@ export default function NuevoDescanso() {
     try {
       const blob = await api.certificadoEjemplo(variante);
       setArchivo(new File([blob], `certificado-ejemplo-${variante}.jpg`, { type: "image/jpeg" }));
+      setReducida(false);
       setEsDePrueba(true);
       setFaltaConfirmar(false);
     } catch (causa) {
-      setErrorArchivo(causa instanceof ApiError ? causa.message : "No se pudo generar el ejemplo.");
+      setErrorArchivo(causa instanceof ApiError ? causa.message : r.ejemplos.error);
     } finally {
       setGenerando(null);
     }
@@ -94,11 +136,11 @@ export default function NuevoDescanso() {
     evento.preventDefault();
     setError(null);
     if (!archivo) {
-      setErrorArchivo("Elige el archivo del certificado.");
+      setErrorArchivo(r.faltaArchivo);
       return;
     }
     if (!sede.trim()) {
-      setError("Indica la sede.");
+      setError(r.sede.falta);
       return;
     }
     if (!esDePrueba) {
@@ -107,13 +149,13 @@ export default function NuevoDescanso() {
     }
     try {
       const creado = await crear.mutateAsync({ archivo, sede });
-      toast({ title: "Descanso registrado", description: "RRHH lo revisará y confirmará las fechas." });
+      toast({ title: r.registrado, description: r.registradoDetalle });
       navigate(`/descansos/${creado.id}`, {
         replace: true,
         state: { desde: "/descansos", analizar: leerConIA && Boolean(credencial) },
       });
     } catch (causa) {
-      const mensaje = causa instanceof ApiError ? causa.message : "No se pudo registrar el descanso.";
+      const mensaje = causa instanceof ApiError ? causa.message : r.noSeRegistro;
       if (causa instanceof ApiError && causa.detalles.some((d) => d.campo === "sede")) {
         setError(mensaje);
       } else {
@@ -126,32 +168,33 @@ export default function NuevoDescanso() {
     <AppShell>
       <div className="mx-auto max-w-xl">
         <PageHeader
-          volver={{ to: "/descansos", texto: "Mis descansos" }}
-          titulo="Registrar descanso médico"
-          descripcion="Sube el certificado. RRHH lo revisará y confirmará las fechas: no hace falta que las escribas."
+          volver={{ to: "/descansos", texto: r.volver }}
+          titulo={r.titulo}
+          descripcion={r.descripcion}
         />
 
         <form onSubmit={registrar} className="space-y-8" noValidate>
-          <Paso numero={1} titulo="Certificado">
+          <Paso numero={1} titulo={r.pasos.imagen}>
             <Dropzone
               id="archivo"
               archivo={archivo}
-              onElegir={elegir}
-              accept={tipos.join(",")}
-              ayuda={`Foto (JPG, PNG, WebP) o PDF de hasta ${maxPaginas} páginas · máximo ${Math.floor(maxBytes / MB)} MB`}
+              onElegir={(elegido) => void elegir(elegido)}
+              accept={`${tipos.join(",")},${EXTENSIONES}`}
+              ayuda={r.ayuda(maxMb)}
               invalido={Boolean(errorArchivo)}
+              ocupado={preparando}
             />
             {errorArchivo && (
               <p className="text-sm text-red-700" role="alert">
                 {errorArchivo}
               </p>
             )}
+            {reducida && (
+              <p className="text-xs text-muted-foreground">{r.reducida(maxLado)}</p>
+            )}
             {config?.demo.habilitado && !archivo && (
               <div className="space-y-2 rounded-lg bg-muted/60 p-3">
-                <p className="text-xs leading-5 text-muted-foreground">
-                  ¿No tienes un documento de prueba? Usa un certificado ficticio generado con los
-                  datos de tu ficha. Cada variante produce un resultado distinto en la lectura con IA:
-                </p>
+                <p className="text-xs leading-5 text-muted-foreground">{r.ejemplos.intro}</p>
                 <div className="flex flex-wrap gap-2">
                   {EJEMPLOS.map(({ variante, texto }) => (
                     <Button
@@ -163,7 +206,7 @@ export default function NuevoDescanso() {
                       onClick={() => usarEjemplo(variante)}
                       disabled={generando !== null}
                     >
-                      {generando === variante ? "Generando…" : texto}
+                      {generando === variante ? r.ejemplos.generando : r.ejemplos[texto]}
                     </Button>
                   ))}
                 </div>
@@ -171,23 +214,23 @@ export default function NuevoDescanso() {
             )}
           </Paso>
 
-          <Paso numero={2} titulo="Sede">
+          <Paso numero={2} titulo={r.pasos.sede}>
             <div className="space-y-1.5">
               <Label htmlFor="sede" className="sr-only">
-                Sede
+                {r.pasos.sede}
               </Label>
               <Input
                 id="sede"
                 value={sede}
                 maxLength={100}
-                placeholder="Ej.: Lima Centro"
+                placeholder={r.sede.placeholder}
                 onChange={(e) => setSede(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">Se completa con la sede de tu ficha. Cámbiala si hace falta.</p>
+              <p className="text-xs text-muted-foreground">{r.sede.ayuda}</p>
             </div>
           </Paso>
 
-          <Paso numero={3} titulo="Lectura con IA (opcional)">
+          <Paso numero={3} titulo={r.pasos.lectura}>
             {credencial ? (
               <div className="flex items-start gap-3">
                 <Checkbox
@@ -197,19 +240,17 @@ export default function NuevoDescanso() {
                   className="mt-0.5"
                 />
                 <Label htmlFor="leer-con-ia" className="font-normal leading-5">
-                  Leer el certificado con IA al terminar, usando mi clave.
-                  <span className="block text-xs text-muted-foreground">
-                    Extrae los datos y los compara con tu ficha. Tarda menos de un minuto.
-                  </span>
+                  {r.lectura.opcion}
+                  <span className="block text-xs text-muted-foreground">{r.lectura.detalle}</span>
                 </Label>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Si quieres que la IA revise el documento,{" "}
+                {r.lectura.sinClaveAntes}
                 <button type="button" onClick={abrirClave} className="font-medium text-primary underline underline-offset-2">
-                  configura tu clave de IA
+                  {r.lectura.sinClaveEnlace}
                 </button>
-                . También puedes hacerlo después.
+                {r.lectura.sinClaveDespues}
               </p>
             )}
           </Paso>
@@ -231,12 +272,11 @@ export default function NuevoDescanso() {
             />
             <div className="space-y-1">
               <Label htmlFor="es-de-prueba" className="font-normal leading-5">
-                Confirmo que el documento es ficticio o de prueba y no contiene datos de salud reales
-                de ninguna persona.
+                {r.confirmacion}
               </Label>
               {faltaConfirmar && !esDePrueba && (
                 <p className="text-xs text-red-700" role="alert">
-                  Esta demo no admite documentos reales: confirma para continuar.
+                  {r.faltaConfirmar}
                 </p>
               )}
             </div>
@@ -249,11 +289,11 @@ export default function NuevoDescanso() {
           )}
 
           <div className="flex flex-wrap gap-3">
-            <Button type="submit" disabled={crear.isPending}>
-              {crear.isPending ? "Subiendo…" : "Registrar descanso"}
+            <Button type="submit" disabled={crear.isPending || preparando}>
+              {crear.isPending ? r.subiendo : r.registrar}
             </Button>
             <Button type="button" variant="ghost" onClick={() => navigate("/descansos")}>
-              Cancelar
+              {t.comun.acciones.cancelar}
             </Button>
           </div>
         </form>

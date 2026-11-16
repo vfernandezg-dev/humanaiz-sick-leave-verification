@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { EstadoBadge } from "@/components/Indicador";
+import { useI18n } from "@/i18n/context";
 import { formatoFechaCorta } from "@/lib/fechas";
-import { LECTURA_IA, periodo } from "@/lib/textos";
+import { periodo, TONO_LECTURA } from "@/lib/textos";
 import { TONO_TEXTO } from "@/lib/tonos";
 import type { Descanso } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -16,18 +17,20 @@ interface Props {
 }
 
 export function ListaDescansos({ descansos, vista, desde }: Props) {
+  const { t } = useI18n();
+  const l = t.inicio.lista;
   return (
     <ul className="divide-y overflow-hidden rounded-lg border">
       {descansos.map((d) => {
-        const fechas = periodo(d) ?? "Fechas por confirmar";
-        const lectura = d.ultimo_analisis ? LECTURA_IA[d.ultimo_analisis.estado_documento] : null;
+        const fechas = periodo(d) ?? l.fechasPorConfirmar;
+        const estadoLectura = d.ultimo_analisis?.estado_documento;
         const titulo =
           vista === "rrhh" ? `${d.colaborador.apellidos}, ${d.colaborador.nombres}` : fechas;
         const detalle = [
-          vista === "rrhh" ? `DNI ${d.colaborador.dni}` : null,
+          vista === "rrhh" ? l.dni(d.colaborador.dni) : null,
           vista === "rrhh" ? fechas : null,
           d.sede,
-          `Registrado el ${formatoFechaCorta(d.created_at)}`,
+          l.registrado(formatoFechaCorta(d.created_at)),
         ]
           .filter(Boolean)
           .join(" · ");
@@ -37,14 +40,14 @@ export function ListaDescansos({ descansos, vista, desde }: Props) {
             <Link
               to={`/descansos/${d.id}`}
               state={{ desde }}
-              className="group flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none"
+              className="group flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-hidden"
             >
               <div className="min-w-0 flex-1 space-y-1">
                 <p className="flex items-center gap-2 text-sm font-medium">
                   <span className="truncate">{titulo}</span>
                   {d.es_muestra && (
                     <span className="shrink-0 rounded border px-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                      Ejemplo
+                      {l.ejemplo}
                     </span>
                   )}
                 </p>
@@ -54,11 +57,13 @@ export function ListaDescansos({ descansos, vista, desde }: Props) {
                 {d.analisis_en_curso ? (
                   <span className="inline-flex items-center gap-1.5 text-muted-foreground">
                     <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-                    Leyendo con IA…
+                    {l.leyendo}
                   </span>
                 ) : (
-                  lectura && (
-                    <span className={TONO_TEXTO[lectura.tono]}>IA: {lectura.etiqueta.toLowerCase()}</span>
+                  estadoLectura && (
+                    <span className={TONO_TEXTO[TONO_LECTURA[estadoLectura]]}>
+                      {l.ia(t.comun.lectura[estadoLectura].etiqueta)}
+                    </span>
                   )
                 )}
               </span>

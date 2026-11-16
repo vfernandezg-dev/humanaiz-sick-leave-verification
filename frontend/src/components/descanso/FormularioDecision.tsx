@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useDecidir } from "@/hooks/queries";
 import { useToast } from "@/hooks/use-toast";
+import { useI18n } from "@/i18n/context";
 import { ApiError } from "@/lib/api";
 import type { Descanso } from "@/lib/types";
 
@@ -17,6 +18,8 @@ type Accion = "Aprobado" | "Rechazado";
  */
 export function FormularioDecision({ descanso }: { descanso: Descanso }) {
   const decidir = useDecidir();
+  const { t } = useI18n();
+  const f = t.detalle.formulario;
   const { toast } = useToast();
   const leido = descanso.ultimo_analisis?.extraidos;
   const [accion, setAccion] = useState<Accion | null>(null);
@@ -32,15 +35,15 @@ export function FormularioDecision({ descanso }: { descanso: Descanso }) {
     if (!accion) return;
     setError(null);
     if (accion === "Aprobado" && (!inicio || !fin)) {
-      setError("Indica la fecha de inicio y la de fin para aprobar.");
+      setError(f.faltanFechas);
       return;
     }
     if (inicio && fin && fin < inicio) {
-      setError("La fecha de fin no puede ser anterior a la de inicio.");
+      setError(f.finAntesDeInicio);
       return;
     }
     if (accion === "Rechazado" && !comentario.trim()) {
-      setError("Explica el motivo del rechazo: el colaborador lo verá.");
+      setError(f.faltaComentario);
       return;
     }
     try {
@@ -53,36 +56,36 @@ export function FormularioDecision({ descanso }: { descanso: Descanso }) {
           fecha_fin: fin || null,
         },
       });
-      toast({ title: accion === "Aprobado" ? "Descanso aprobado" : "Descanso rechazado" });
+      toast({ title: accion === "Aprobado" ? f.aprobado : f.rechazado });
     } catch (causa) {
-      setError(causa instanceof ApiError ? causa.message : "No se pudo registrar la decisión.");
+      setError(causa instanceof ApiError ? causa.message : f.noSeRegistro);
     }
   };
 
   return (
-    // noValidate: los mensajes propios (en español y con contexto) sustituyen a los del navegador.
+    // noValidate: los mensajes propios (en el idioma de la app y con contexto) sustituyen a los del navegador.
     <form onSubmit={confirmar} noValidate className="space-y-5 rounded-lg border p-4 sm:p-5">
       <Segmentado
-        etiqueta="Decisión"
+        etiqueta={f.etiqueta}
         valor={accion}
         onCambio={(valor) => {
           setAccion(valor);
           setError(null);
         }}
         opciones={[
-          { valor: "Aprobado", texto: "Aprobar" },
-          { valor: "Rechazado", texto: "Rechazar" },
+          { valor: "Aprobado", texto: f.aprobar },
+          { valor: "Rechazado", texto: f.rechazar },
         ]}
       />
 
       {accion === null ? (
-        <p className="text-sm text-muted-foreground">Elige si apruebas o rechazas el descanso.</p>
+        <p className="text-sm text-muted-foreground">{f.elige}</p>
       ) : (
         <>
           <div className="space-y-2">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="decision-inicio">Inicio del descanso</Label>
+                <Label htmlFor="decision-inicio">{f.inicio}</Label>
                 <Input
                   id="decision-inicio"
                   type="date"
@@ -92,7 +95,7 @@ export function FormularioDecision({ descanso }: { descanso: Descanso }) {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="decision-fin">Fin del descanso</Label>
+                <Label htmlFor="decision-fin">{f.fin}</Label>
                 <Input
                   id="decision-fin"
                   type="date"
@@ -104,19 +107,15 @@ export function FormularioDecision({ descanso }: { descanso: Descanso }) {
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              {fechasDeLaIA
-                ? "Fechas propuestas por la lectura con IA: compáralas con el certificado antes de confirmar."
-                : accion === "Aprobado"
-                  ? "Obligatorias para aprobar."
-                  : "Opcionales al rechazar."}
+              {fechasDeLaIA ? f.fechasDeLaIA : accion === "Aprobado" ? f.obligatorias : f.opcionales}
             </p>
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="decision-comentario">
-              Comentario para el colaborador
+              {f.comentario}
               <span className="font-normal text-muted-foreground">
-                {accion === "Rechazado" ? " (obligatorio)" : " (opcional)"}
+                {accion === "Rechazado" ? f.obligatorio : f.opcional}
               </span>
             </Label>
             <Textarea
@@ -124,7 +123,7 @@ export function FormularioDecision({ descanso }: { descanso: Descanso }) {
               rows={3}
               maxLength={1000}
               placeholder={
-                accion === "Rechazado" ? "Por ejemplo: el certificado está a nombre de otra persona." : ""
+                accion === "Rechazado" ? f.ejemploRechazo : ""
               }
               value={comentario}
               onChange={(e) => setComentario(e.target.value)}
@@ -142,11 +141,7 @@ export function FormularioDecision({ descanso }: { descanso: Descanso }) {
             variant={accion === "Rechazado" ? "destructive" : "default"}
             disabled={decidir.isPending}
           >
-            {decidir.isPending
-              ? "Guardando…"
-              : accion === "Aprobado"
-                ? "Confirmar aprobación"
-                : "Confirmar rechazo"}
+            {decidir.isPending ? f.guardando : accion === "Aprobado" ? f.confirmarAprobacion : f.confirmarRechazo}
           </Button>
         </>
       )}

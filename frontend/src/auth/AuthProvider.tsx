@@ -12,6 +12,7 @@ const CANAL = "humanaiz-sesion";
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [cargando, setCargando] = useState(true);
+  const [salidaVoluntaria, setSalidaVoluntaria] = useState(false);
   const queryClient = useQueryClient();
   const canal = useRef<BroadcastChannel | null>(null);
 
@@ -45,7 +46,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (typeof BroadcastChannel !== "undefined") {
       const bc = new BroadcastChannel(CANAL);
       bc.onmessage = (evento: MessageEvent<unknown>) => {
-        if (evento.data === "logout") limpiarEstadoLocal();
+        if (evento.data === "logout") {
+          setSalidaVoluntaria(true);
+          limpiarEstadoLocal();
+        }
       };
       canal.current = bc;
     }
@@ -62,12 +66,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Otra persona pudo usar antes esta pestaña: se parte de cero.
       llmStore.olvidar();
       queryClient.clear();
+      setSalidaVoluntaria(false);
       setUsuario(sesion.usuario);
     },
     [queryClient],
   );
 
   const cerrarSesion = useCallback(async () => {
+    setSalidaVoluntaria(true);
     try {
       await api.logout();
     } finally {
@@ -81,10 +87,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       usuario,
       cargando,
       esRRHH: usuario?.role === "analista_rrhh",
+      salidaVoluntaria,
       iniciarSesion,
       cerrarSesion,
     }),
-    [usuario, cargando, iniciarSesion, cerrarSesion],
+    [usuario, cargando, salidaVoluntaria, iniciarSesion, cerrarSesion],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

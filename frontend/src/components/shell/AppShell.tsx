@@ -3,26 +3,28 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { KeyRound, LogOut } from "lucide-react";
 import { useAuth } from "@/auth/context";
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/i18n/context";
 import { useLlm } from "@/llm/context";
-import { ROL } from "@/lib/textos";
 import { cn } from "@/lib/utils";
 import { AvisoConcurso } from "./AvisoConcurso";
 import { Logo } from "./Logo";
 import { PieDePagina } from "./PieDePagina";
+import { SelectorIdioma } from "./SelectorIdioma";
 
 const enlace = ({ isActive }: { isActive: boolean }) =>
   cn(
-    "whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+    "whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
     isActive ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:text-foreground",
   );
 
 export function SaltarAlContenido() {
+  const { t } = useI18n();
   return (
     <a
       href="#contenido"
       className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:shadow"
     >
-      Saltar al contenido
+      {t.shell.saltar}
     </a>
   );
 }
@@ -45,6 +47,7 @@ export function AppShell({ children, seccion }: Props) {
     enlace({ isActive: seccion ? seccion === propia : isActive });
   const { usuario, esRRHH, cerrarSesion } = useAuth();
   const { credencial, abrir } = useLlm();
+  const { t } = useI18n();
   const navigate = useNavigate();
 
   const salir = async () => {
@@ -60,30 +63,31 @@ export function AppShell({ children, seccion }: Props) {
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
           <Logo />
           <nav
-            aria-label="Principal"
+            aria-label={t.shell.navPrincipal}
             className="order-last -mx-1 flex w-full gap-1 overflow-x-auto sm:order-none sm:mx-0 sm:w-auto"
           >
             <NavLink to="/" end className={enlace}>
-              Inicio
+              {t.shell.nav.inicio}
             </NavLink>
             <NavLink to="/descansos" className={marcar("mis-descansos")}>
-              Mis descansos
+              {t.shell.nav.misDescansos}
             </NavLink>
             {esRRHH && (
               <>
                 <NavLink to="/rrhh/descansos" className={marcar("solicitudes")}>
-                  Solicitudes
+                  {t.shell.nav.solicitudes}
                 </NavLink>
                 <NavLink to="/rrhh/colaboradores" className={enlace}>
-                  Colaboradores
+                  {t.shell.nav.colaboradores}
                 </NavLink>
               </>
             )}
           </nav>
           <div className="ml-auto flex items-center gap-1">
+            <SelectorIdioma className="mr-1" />
             <Button variant="ghost" size="sm" className="gap-2" onClick={abrir}>
               <KeyRound className="h-4 w-4" aria-hidden />
-              <span className="hidden sm:inline">Clave de IA</span>
+              <span className="hidden sm:inline">{t.shell.claveIA}</span>
               <span
                 className={cn(
                   "h-1.5 w-1.5 rounded-full",
@@ -91,17 +95,17 @@ export function AppShell({ children, seccion }: Props) {
                 )}
                 aria-hidden
               />
-              <span className="sr-only">{credencial ? "(configurada)" : "(sin configurar)"}</span>
+              <span className="sr-only">{credencial ? t.shell.claveConfigurada : t.shell.claveSinConfigurar}</span>
             </Button>
             {usuario && (
               <div className="hidden px-2 text-right leading-tight lg:block">
                 <p className="text-sm">{usuario.nombres.split(" ")[0]}</p>
-                <p className="text-xs text-muted-foreground">{ROL[usuario.role]}</p>
+                <p className="text-xs text-muted-foreground">{t.comun.rol[usuario.role]}</p>
               </div>
             )}
             <Button variant="ghost" size="sm" className="gap-2" onClick={salir}>
               <LogOut className="h-4 w-4" aria-hidden />
-              <span className="hidden sm:inline">Salir</span>
+              <span className="hidden sm:inline">{t.shell.salir}</span>
             </Button>
           </div>
         </div>

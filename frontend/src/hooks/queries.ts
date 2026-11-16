@@ -17,10 +17,6 @@ export function useConfig() {
 }
 
 /** Nombre del concurso para usar dentro de una frase. */
-export function useConcurso(): string {
-  return useConfig().data?.proyecto.concurso ?? "un concurso";
-}
-
 export function useMisDescansos(filtros: FiltrosDescansos = {}) {
   return useQuery({
     queryKey: [DESCANSOS, "mios", filtros],
