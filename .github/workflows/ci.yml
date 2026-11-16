@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: humanaiz_test
+          POSTGRES_USER: humanaiz
+          POSTGRES_PASSWORD: humanaiz
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U humanaiz -d humanaiz_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgresql+asyncpg://humanaiz:humanaiz@127.0.0.1:5432/humanaiz_test
+      TEST_DATABASE_URL: postgresql+asyncpg://humanaiz:humanaiz@127.0.0.1:5432/humanaiz_test
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Instalar uv
+        run: pipx install uv==0.13.8
+      - name: Dependencias
+        run: uv sync --frozen
+      - name: Lint y formato
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+      - name: Las migraciones reproducen el modelo
+        run: |
+          uv run alembic upgrade head
+          uv run alembic check
+      - name: Tests
+        run: uv run pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+      - name: Instalar pnpm
+        run: npm install --global pnpm@11.28.12
+      - name: Dependencias
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      - name: Tipos
+        run: pnpm typecheck
+      - name: Tests
+        run: pnpm test
+      - name: Los tipos de la API están al día
+        run: |
+          pnpm gen:api
+          git diff --exit-code -- src/lib/api-types.ts
+      - name: Build
+        run: pnpm build
+
+  imagenes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Construir imágenes
+        env:
+          PUBLIC_ORIGIN: https://ci.example
+          POSTGRES_PASSWORD: solo-para-construir
+          JWT_SECRET: solo-para-construir-0123456789abcdef0123456789abcdef
+        run: docker compose build
+      - name: Construir la imagen única (Vercel)
+        run: docker build --tag humanaiz:unica .

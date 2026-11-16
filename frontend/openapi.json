@@ -1,0 +1,2336 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HumanAIz API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/health/live": {
+      "get": {
+        "tags": [
+          "salud"
+        ],
+        "summary": "Live",
+        "operationId": "live_api_v1_health_live_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Live Api V1 Health Live Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/config": {
+      "get": {
+        "tags": [
+          "configuración"
+        ],
+        "summary": "Public Config",
+        "operationId": "public_config_api_v1_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigPublica"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "sesión"
+        ],
+        "summary": "Login",
+        "operationId": "login_api_v1_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sesion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "tags": [
+          "sesión"
+        ],
+        "summary": "Refresh",
+        "operationId": "refresh_api_v1_auth_refresh_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sesion"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "sesión"
+        ],
+        "summary": "Logout",
+        "operationId": "logout_api_v1_auth_logout_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": [
+          "sesión"
+        ],
+        "summary": "Me",
+        "operationId": "me_api_v1_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Usuario"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/colaboradores": {
+      "get": {
+        "tags": [
+          "colaboradores"
+        ],
+        "summary": "Listar Colaboradores",
+        "operationId": "listar_colaboradores_api_v1_colaboradores_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "categoria",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "A",
+                    "B",
+                    "C",
+                    "D"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Categoria"
+            }
+          },
+          {
+            "name": "area_operacion",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Area Operacion"
+            }
+          },
+          {
+            "name": "tipo_contrato",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tipo Contrato"
+            }
+          },
+          {
+            "name": "sexo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "M",
+                    "F"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sexo"
+            }
+          },
+          {
+            "name": "activo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Activo"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagina_Colaborador_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/colaboradores/facetas": {
+      "get": {
+        "tags": [
+          "colaboradores"
+        ],
+        "summary": "Facetas",
+        "description": "Valores distintos para poblar los filtros del listado.",
+        "operationId": "facetas_api_v1_colaboradores_facetas_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ColaboradorFacetas"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/descansos": {
+      "post": {
+        "tags": [
+          "descansos"
+        ],
+        "summary": "Crear Descanso",
+        "operationId": "crear_descanso_api_v1_descansos_post",
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Descanso"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "archivo"
+                ],
+                "properties": {
+                  "archivo": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Imagen del certificado médico: JPG, PNG o WebP."
+                  },
+                  "sede": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "description": "Si se omite se usa la sede del colaborador."
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "descansos"
+        ],
+        "summary": "Todos Los Descansos",
+        "operationId": "todos_los_descansos_api_v1_descansos_get",
+        "parameters": [
+          {
+            "name": "estado",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "Pendiente",
+                    "Aprobado",
+                    "Rechazado"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Estado"
+            }
+          },
+          {
+            "name": "dni",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9]{1,8}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Dni"
+            }
+          },
+          {
+            "name": "sede",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sede"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagina_Descanso_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/descansos": {
+      "get": {
+        "tags": [
+          "descansos"
+        ],
+        "summary": "Mis Descansos",
+        "operationId": "mis_descansos_api_v1_me_descansos_get",
+        "parameters": [
+          {
+            "name": "estado",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "Pendiente",
+                    "Aprobado",
+                    "Rechazado"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Estado"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagina_Descanso_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/descansos/{descanso_id}": {
+      "get": {
+        "tags": [
+          "descansos"
+        ],
+        "summary": "Obtener Descanso",
+        "operationId": "obtener_descanso_api_v1_descansos__descanso_id__get",
+        "parameters": [
+          {
+            "name": "descanso_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Descanso Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Descanso"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "descansos"
+        ],
+        "summary": "Eliminar Descanso",
+        "operationId": "eliminar_descanso_api_v1_descansos__descanso_id__delete",
+        "parameters": [
+          {
+            "name": "descanso_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Descanso Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/descansos/{descanso_id}/decision": {
+      "post": {
+        "tags": [
+          "descansos"
+        ],
+        "summary": "Decidir Descanso",
+        "operationId": "decidir_descanso_api_v1_descansos__descanso_id__decision_post",
+        "parameters": [
+          {
+            "name": "descanso_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Descanso Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Descanso"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/descansos/{descanso_id}/archivo": {
+      "get": {
+        "tags": [
+          "descansos"
+        ],
+        "summary": "Descargar Imagen",
+        "description": "Imagen guardada (la re-codificación del servidor), siempre como descarga.",
+        "operationId": "descargar_imagen_api_v1_descansos__descanso_id__archivo_get",
+        "parameters": [
+          {
+            "name": "descanso_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Descanso Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/jpeg": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/descansos/{descanso_id}/paginas/{numero}": {
+      "get": {
+        "tags": [
+          "descansos"
+        ],
+        "summary": "Ver Pagina",
+        "description": "Página re-codificada por el servidor (JPEG sin metadatos), para mostrar en pantalla.",
+        "operationId": "ver_pagina_api_v1_descansos__descanso_id__paginas__numero__get",
+        "parameters": [
+          {
+            "name": "descanso_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Descanso Id"
+            }
+          },
+          {
+            "name": "numero",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Numero"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/jpeg": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/descansos/{descanso_id}/analisis": {
+      "post": {
+        "tags": [
+          "análisis"
+        ],
+        "summary": "Analizar Descanso",
+        "operationId": "analizar_descanso_api_v1_descansos__descanso_id__analisis_post",
+        "parameters": [
+          {
+            "name": "descanso_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Descanso Id"
+            }
+          },
+          {
+            "name": "x-llm-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Clave de API del proveedor de IA, del propio usuario. Se usa solo para esta petición y no se almacena."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalisisRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Analisis"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "análisis"
+        ],
+        "summary": "Historial De Analisis",
+        "description": "Análisis completados de un descanso, del más reciente al más antiguo.",
+        "operationId": "historial_de_analisis_api_v1_descansos__descanso_id__analisis_get",
+        "parameters": [
+          {
+            "name": "descanso_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Descanso Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Analisis"
+                  },
+                  "title": "Response Historial De Analisis Api V1 Descansos  Descanso Id  Analisis Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/modelos": {
+      "post": {
+        "tags": [
+          "análisis"
+        ],
+        "summary": "Modelos Disponibles",
+        "description": "Comprueba la clave y devuelve los modelos que puede usar, sugeridos primero.\n\nLa clave no se guarda: viaja en la cabecera, se usa para esta consulta y se\ndescarta, igual que en el análisis.",
+        "operationId": "modelos_disponibles_api_v1_llm_modelos_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelosRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelosDisponibles"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "x-llm-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Clave del proveedor de IA. Se usa solo para esta consulta."
+          }
+        ]
+      }
+    },
+    "/api/v1/demo/certificados/{variante}": {
+      "get": {
+        "tags": [
+          "demo"
+        ],
+        "summary": "Certificado De Ejemplo",
+        "description": "Genera un certificado ficticio (JPEG) con los datos del propio usuario.\n\nSolo existe en modo demo: los datos de las cuentas de prueba son inventados.\nVariantes: `valido` (coincide con la ficha), `observado` (días que no cuadran\ny sin CMP), `otra-persona` (a nombre de otra persona) y `citt`.",
+        "operationId": "certificado_de_ejemplo_api_v1_demo_certificados__variante__get",
+        "parameters": [
+          {
+            "name": "variante",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "valido",
+                "observado",
+                "otra-persona",
+                "citt"
+              ],
+              "type": "string",
+              "title": "Variante"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/jpeg": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Analisis": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "proveedor": {
+            "type": "string",
+            "title": "Proveedor"
+          },
+          "modelo": {
+            "type": "string",
+            "title": "Modelo"
+          },
+          "solicitado_por": {
+            "$ref": "#/components/schemas/Solicitante"
+          },
+          "estado_documento": {
+            "type": "string",
+            "enum": [
+              "Aprobado",
+              "Observado",
+              "Rechazado"
+            ],
+            "title": "Estado Documento"
+          },
+          "extraidos": {
+            "$ref": "#/components/schemas/Extraidos"
+          },
+          "validaciones": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object",
+            "title": "Validaciones"
+          },
+          "validaciones_detalle": {
+            "items": {
+              "$ref": "#/components/schemas/ValidacionDetalle"
+            },
+            "type": "array",
+            "title": "Validaciones Detalle"
+          },
+          "motivos_rechazo": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Motivos Rechazo"
+          },
+          "comentario_general": {
+            "type": "string",
+            "title": "Comentario General"
+          },
+          "uso": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UsoTokens"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "duracion_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duracion Ms"
+          },
+          "version_prompt": {
+            "type": "string",
+            "title": "Version Prompt"
+          },
+          "version_reglas": {
+            "type": "string",
+            "title": "Version Reglas"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "created_at",
+          "proveedor",
+          "modelo",
+          "solicitado_por",
+          "estado_documento",
+          "extraidos",
+          "validaciones",
+          "validaciones_detalle",
+          "motivos_rechazo",
+          "comentario_general",
+          "uso",
+          "duracion_ms",
+          "version_prompt",
+          "version_reglas"
+        ],
+        "title": "Analisis"
+      },
+      "AnalisisRequest": {
+        "properties": {
+          "proveedor": {
+            "type": "string",
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Proveedor"
+          },
+          "modelo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modelo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "proveedor"
+        ],
+        "title": "AnalisisRequest"
+      },
+      "CargaConfig": {
+        "properties": {
+          "max_bytes": {
+            "type": "integer",
+            "title": "Max Bytes"
+          },
+          "tipos_mime": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tipos Mime"
+          },
+          "min_lado_px": {
+            "type": "integer",
+            "title": "Min Lado Px",
+            "description": "Lado corto mínimo de la imagen, en píxeles."
+          },
+          "max_lado_px": {
+            "type": "integer",
+            "title": "Max Lado Px",
+            "description": "Lado largo con el que se guarda la imagen. El navegador puede reducirla a este tamaño antes de subirla sin perder nada de lo que se conserva."
+          }
+        },
+        "type": "object",
+        "required": [
+          "max_bytes",
+          "tipos_mime",
+          "min_lado_px",
+          "max_lado_px"
+        ],
+        "title": "CargaConfig"
+      },
+      "Colaborador": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "dni": {
+            "type": "string",
+            "title": "Dni"
+          },
+          "apellidos": {
+            "type": "string",
+            "title": "Apellidos"
+          },
+          "nombres": {
+            "type": "string",
+            "title": "Nombres"
+          },
+          "fecha_nacimiento": {
+            "type": "string",
+            "format": "date",
+            "title": "Fecha Nacimiento"
+          },
+          "categoria": {
+            "type": "string",
+            "title": "Categoria"
+          },
+          "sexo": {
+            "type": "string",
+            "title": "Sexo"
+          },
+          "celular": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Celular"
+          },
+          "area_operacion": {
+            "type": "string",
+            "title": "Area Operacion"
+          },
+          "tipo_contrato": {
+            "type": "string",
+            "title": "Tipo Contrato"
+          },
+          "sede": {
+            "type": "string",
+            "title": "Sede"
+          },
+          "activo": {
+            "type": "boolean",
+            "title": "Activo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "dni",
+          "apellidos",
+          "nombres",
+          "fecha_nacimiento",
+          "categoria",
+          "sexo",
+          "celular",
+          "area_operacion",
+          "tipo_contrato",
+          "sede",
+          "activo"
+        ],
+        "title": "Colaborador"
+      },
+      "ColaboradorFacetas": {
+        "properties": {
+          "areas_operacion": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Areas Operacion"
+          },
+          "tipos_contrato": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tipos Contrato"
+          },
+          "sedes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sedes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "areas_operacion",
+          "tipos_contrato",
+          "sedes"
+        ],
+        "title": "ColaboradorFacetas"
+      },
+      "ConfigPublica": {
+        "properties": {
+          "proyecto": {
+            "$ref": "#/components/schemas/ProyectoConfig"
+          },
+          "demo": {
+            "$ref": "#/components/schemas/DemoConfig"
+          },
+          "carga": {
+            "$ref": "#/components/schemas/CargaConfig"
+          },
+          "llm": {
+            "$ref": "#/components/schemas/LlmConfig"
+          }
+        },
+        "type": "object",
+        "required": [
+          "proyecto",
+          "demo",
+          "carga",
+          "llm"
+        ],
+        "title": "ConfigPublica"
+      },
+      "DecisionRequest": {
+        "properties": {
+          "estado": {
+            "type": "string",
+            "enum": [
+              "Aprobado",
+              "Rechazado"
+            ],
+            "title": "Estado"
+          },
+          "comentario_rrhh": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comentario Rrhh"
+          },
+          "fecha_inicio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fecha Inicio"
+          },
+          "fecha_fin": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fecha Fin"
+          }
+        },
+        "type": "object",
+        "required": [
+          "estado"
+        ],
+        "title": "DecisionRequest"
+      },
+      "DemoConfig": {
+        "properties": {
+          "habilitado": {
+            "type": "boolean",
+            "title": "Habilitado"
+          },
+          "aviso": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aviso"
+          },
+          "usuarios": {
+            "items": {
+              "$ref": "#/components/schemas/DemoUsuario"
+            },
+            "type": "array",
+            "title": "Usuarios"
+          },
+          "retencion_horas": {
+            "type": "integer",
+            "title": "Retencion Horas"
+          }
+        },
+        "type": "object",
+        "required": [
+          "habilitado",
+          "aviso",
+          "usuarios",
+          "retencion_horas"
+        ],
+        "title": "DemoConfig"
+      },
+      "DemoUsuario": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "colaborador",
+              "analista_rrhh"
+            ],
+            "title": "Role"
+          },
+          "dni": {
+            "type": "string",
+            "title": "Dni"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          },
+          "etiqueta": {
+            "type": "string",
+            "title": "Etiqueta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "dni",
+          "password",
+          "etiqueta"
+        ],
+        "title": "DemoUsuario"
+      },
+      "Descanso": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "Pendiente",
+              "Aprobado",
+              "Rechazado"
+            ],
+            "title": "Estado"
+          },
+          "sede": {
+            "type": "string",
+            "title": "Sede"
+          },
+          "fecha_inicio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fecha Inicio"
+          },
+          "fecha_fin": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fecha Fin"
+          },
+          "comentario_rrhh": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comentario Rrhh"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "decidido_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decidido At"
+          },
+          "colaborador": {
+            "$ref": "#/components/schemas/DescansoColaborador"
+          },
+          "archivo": {
+            "$ref": "#/components/schemas/DescansoArchivo"
+          },
+          "ultimo_analisis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Analisis"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "analisis_en_curso": {
+            "type": "boolean",
+            "title": "Analisis En Curso"
+          },
+          "es_muestra": {
+            "type": "boolean",
+            "title": "Es Muestra"
+          },
+          "es_propio": {
+            "type": "boolean",
+            "title": "Es Propio"
+          },
+          "permisos": {
+            "$ref": "#/components/schemas/DescansoPermisos"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "estado",
+          "sede",
+          "fecha_inicio",
+          "fecha_fin",
+          "comentario_rrhh",
+          "created_at",
+          "updated_at",
+          "decidido_at",
+          "colaborador",
+          "archivo",
+          "ultimo_analisis",
+          "analisis_en_curso",
+          "es_muestra",
+          "es_propio",
+          "permisos"
+        ],
+        "title": "Descanso"
+      },
+      "DescansoArchivo": {
+        "properties": {
+          "mime": {
+            "type": "string",
+            "title": "Mime",
+            "description": "Formato de la imagen que se subió."
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes",
+            "description": "Lo que ocupa la imagen guardada (re-codificada)."
+          },
+          "paginas": {
+            "type": "integer",
+            "title": "Paginas"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mime",
+          "size_bytes",
+          "paginas"
+        ],
+        "title": "DescansoArchivo"
+      },
+      "DescansoColaborador": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "dni": {
+            "type": "string",
+            "title": "Dni"
+          },
+          "nombres": {
+            "type": "string",
+            "title": "Nombres"
+          },
+          "apellidos": {
+            "type": "string",
+            "title": "Apellidos"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "dni",
+          "nombres",
+          "apellidos"
+        ],
+        "title": "DescansoColaborador"
+      },
+      "DescansoPermisos": {
+        "properties": {
+          "puede_analizar": {
+            "type": "boolean",
+            "title": "Puede Analizar"
+          },
+          "puede_decidir": {
+            "type": "boolean",
+            "title": "Puede Decidir"
+          },
+          "puede_eliminar": {
+            "type": "boolean",
+            "title": "Puede Eliminar"
+          }
+        },
+        "type": "object",
+        "required": [
+          "puede_analizar",
+          "puede_decidir",
+          "puede_eliminar"
+        ],
+        "title": "DescansoPermisos"
+      },
+      "Extraidos": {
+        "properties": {
+          "dni_en_documento": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dni En Documento"
+          },
+          "nombre_en_documento": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nombre En Documento"
+          },
+          "citt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Citt"
+          },
+          "fecha_inicio_doc": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fecha Inicio Doc"
+          },
+          "fecha_fin_doc": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fecha Fin Doc"
+          },
+          "dias_documento": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dias Documento"
+          },
+          "contingencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contingencia"
+          },
+          "codigo_medico": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Codigo Medico"
+          },
+          "tipo_documento": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tipo Documento"
+          },
+          "es_certificado_medico": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Es Certificado Medico"
+          },
+          "legible": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legible"
+          },
+          "fecha_emision_doc": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fecha Emision Doc"
+          }
+        },
+        "type": "object",
+        "title": "Extraidos",
+        "description": "Campos leídos del documento. `null` significa \"no legible o ausente\"."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "LlmConfig": {
+        "properties": {
+          "proveedores": {
+            "items": {
+              "$ref": "#/components/schemas/ProveedorLlm"
+            },
+            "type": "array",
+            "title": "Proveedores"
+          }
+        },
+        "type": "object",
+        "required": [
+          "proveedores"
+        ],
+        "title": "LlmConfig"
+      },
+      "LoginRequest": {
+        "properties": {
+          "dni": {
+            "type": "string",
+            "pattern": "^[0-9]{8}$",
+            "title": "Dni"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Password"
+          },
+          "acepta_terminos": {
+            "type": "boolean",
+            "title": "Acepta Terminos",
+            "default": false
+          },
+          "terminos_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terminos Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dni",
+          "password"
+        ],
+        "title": "LoginRequest"
+      },
+      "ModeloDisponibleSalida": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "sugerido": {
+            "type": "boolean",
+            "title": "Sugerido"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "nombre",
+          "sugerido"
+        ],
+        "title": "ModeloDisponibleSalida"
+      },
+      "ModeloLlm": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "predeterminado": {
+            "type": "boolean",
+            "title": "Predeterminado"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "nombre",
+          "predeterminado"
+        ],
+        "title": "ModeloLlm"
+      },
+      "ModelosDisponibles": {
+        "properties": {
+          "proveedor": {
+            "type": "string",
+            "title": "Proveedor"
+          },
+          "modelos": {
+            "items": {
+              "$ref": "#/components/schemas/ModeloDisponibleSalida"
+            },
+            "type": "array",
+            "title": "Modelos"
+          }
+        },
+        "type": "object",
+        "required": [
+          "proveedor",
+          "modelos"
+        ],
+        "title": "ModelosDisponibles"
+      },
+      "ModelosRequest": {
+        "properties": {
+          "proveedor": {
+            "type": "string",
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Proveedor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "proveedor"
+        ],
+        "title": "ModelosRequest"
+      },
+      "Pagina_Colaborador_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Colaborador"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Pagina[Colaborador]"
+      },
+      "Pagina_Descanso_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Descanso"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Pagina[Descanso]"
+      },
+      "ProveedorLlm": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "formato_clave": {
+            "type": "string",
+            "title": "Formato Clave"
+          },
+          "prefijos_clave": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Prefijos Clave"
+          },
+          "url_claves": {
+            "type": "string",
+            "title": "Url Claves"
+          },
+          "max_imagenes": {
+            "type": "integer",
+            "title": "Max Imagenes"
+          },
+          "modelos": {
+            "items": {
+              "$ref": "#/components/schemas/ModeloLlm"
+            },
+            "type": "array",
+            "title": "Modelos"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "nombre",
+          "formato_clave",
+          "prefijos_clave",
+          "url_claves",
+          "max_imagenes",
+          "modelos"
+        ],
+        "title": "ProveedorLlm"
+      },
+      "ProyectoConfig": {
+        "properties": {
+          "concurso": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Concurso"
+          },
+          "contacto": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contacto"
+          },
+          "version_terminos": {
+            "type": "string",
+            "title": "Version Terminos"
+          },
+          "retencion_registros_dias": {
+            "type": "integer",
+            "title": "Retencion Registros Dias"
+          }
+        },
+        "type": "object",
+        "required": [
+          "concurso",
+          "contacto",
+          "version_terminos",
+          "retencion_registros_dias"
+        ],
+        "title": "ProyectoConfig"
+      },
+      "Sesion": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "token_type": {
+            "type": "string",
+            "const": "bearer",
+            "title": "Token Type",
+            "default": "bearer"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
+          },
+          "usuario": {
+            "$ref": "#/components/schemas/Usuario"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token",
+          "expires_in",
+          "usuario"
+        ],
+        "title": "Sesion"
+      },
+      "Solicitante": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nombres": {
+            "type": "string",
+            "title": "Nombres"
+          },
+          "apellidos": {
+            "type": "string",
+            "title": "Apellidos"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "colaborador",
+              "analista_rrhh"
+            ],
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "nombres",
+          "apellidos",
+          "role"
+        ],
+        "title": "Solicitante"
+      },
+      "UsoTokens": {
+        "properties": {
+          "tokens_entrada": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Entrada"
+          },
+          "tokens_salida": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Salida"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tokens_entrada",
+          "tokens_salida"
+        ],
+        "title": "UsoTokens"
+      },
+      "Usuario": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "dni": {
+            "type": "string",
+            "title": "Dni"
+          },
+          "nombres": {
+            "type": "string",
+            "title": "Nombres"
+          },
+          "apellidos": {
+            "type": "string",
+            "title": "Apellidos"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "colaborador",
+              "analista_rrhh"
+            ],
+            "title": "Role"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "colaborador": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UsuarioColaborador"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "dni",
+          "nombres",
+          "apellidos",
+          "role",
+          "is_demo",
+          "colaborador"
+        ],
+        "title": "Usuario"
+      },
+      "UsuarioColaborador": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "sede": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sede"
+          },
+          "area_operacion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Operacion"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "sede",
+          "area_operacion"
+        ],
+        "title": "UsuarioColaborador"
+      },
+      "ValidacionDetalle": {
+        "properties": {
+          "codigo": {
+            "type": "string",
+            "title": "Codigo"
+          },
+          "critica": {
+            "type": "boolean",
+            "title": "Critica"
+          },
+          "resultado": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "falla",
+              "no_evaluada"
+            ],
+            "title": "Resultado"
+          },
+          "mensaje": {
+            "type": "string",
+            "title": "Mensaje"
+          }
+        },
+        "type": "object",
+        "required": [
+          "codigo",
+          "critica",
+          "resultado",
+          "mensaje"
+        ],
+        "title": "ValidacionDetalle"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

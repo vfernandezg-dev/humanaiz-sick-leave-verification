@@ -1,0 +1,11 @@
+# Finales de línea LF en todo el repo: un Caddyfile o un script con CRLF
+# falla dentro de las imágenes Linux aunque se edite desde Windows.
+* text=auto eol=lf
+
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.webp binary
+*.pdf  binary
+*.ico  binary
+*.ttf  binary

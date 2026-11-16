@@ -1,0 +1,181 @@
+# Stack de producción de HumanAIz. Uso:
+#   cp .env.example .env   # y completa los valores
+#   docker compose up -d --build --wait
+name: humanaiz
+
+x-api-env: &api-env
+  ENVIRONMENT: ${ENVIRONMENT:-production}
+  PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?define PUBLIC_ORIGIN en .env}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  TZ_NEGOCIO: ${TZ_NEGOCIO:-America/Lima}
+  CONCURSO_NOMBRE: ${CONCURSO_NOMBRE:-}
+  CONTACTO_PROYECTO: ${CONTACTO_PROYECTO:-}
+  AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS:-30}
+  ENABLE_DOCS: "false"
+  # Usa una contraseña sin caracteres reservados de URL (p. ej. `openssl rand -hex 24`).
+  DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-humanaiz}:${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD en .env}@db:5432/${POSTGRES_DB:-humanaiz}
+  DB_POOL_SIZE: ${DB_POOL_SIZE:-5}
+  JWT_SECRET: ${JWT_SECRET:?define JWT_SECRET en .env}
+  ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
+  SESSION_IDLE_TTL_SECONDS: ${SESSION_IDLE_TTL_SECONDS:-28800}
+  SESSION_ABSOLUTE_TTL_SECONDS: ${SESSION_ABSOLUTE_TTL_SECONDS:-604800}
+  COOKIE_SECURE: ${COOKIE_SECURE:-true}
+  STORAGE_LOCAL_PATH: /data/uploads
+  MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-5242880}
+  MIN_FREE_DISK_MB: ${MIN_FREE_DISK_MB:-500}
+  STORAGE_MAX_MB: ${STORAGE_MAX_MB:-2048}
+  STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+  LLM_ENABLED_PROVIDERS: ${LLM_ENABLED_PROVIDERS:-anthropic,openai,gemini,openrouter,xai,mistral,groq}
+  LLM_REQUEST_TIMEOUT_SECONDS: ${LLM_REQUEST_TIMEOUT_SECONDS:-90}
+  ANALYSIS_DEADLINE_SECONDS: ${ANALYSIS_DEADLINE_SECONDS:-100}
+  ANALYSIS_MAX_CONCURRENCY: ${ANALYSIS_MAX_CONCURRENCY:-8}
+  RATE_LIMIT_STORAGE_URI: ${RATE_LIMIT_STORAGE_URI:-memory://}
+  RATE_LIMIT_LOGIN: ${RATE_LIMIT_LOGIN:-5/minute}
+  RATE_LIMIT_LOGIN_DNI: ${RATE_LIMIT_LOGIN_DNI:-30/hour}
+  RATE_LIMIT_UPLOAD: ${RATE_LIMIT_UPLOAD:-10/hour}
+  RATE_LIMIT_UPLOAD_GLOBAL: ${RATE_LIMIT_UPLOAD_GLOBAL:-300/hour}
+  RATE_LIMIT_ANALYSIS: ${RATE_LIMIT_ANALYSIS:-30/hour}
+  RATE_LIMIT_MODELOS: ${RATE_LIMIT_MODELOS:-30/hour}
+  RATE_LIMIT_MODELOS_GLOBAL: ${RATE_LIMIT_MODELOS_GLOBAL:-300/hour}
+  DEMO_MODE: ${DEMO_MODE:-false}
+  DEMO_TTL_HOURS: ${DEMO_TTL_HOURS:-24}
+  DEMO_SESSION_TTL_SECONDS: ${DEMO_SESSION_TTL_SECONDS:-7200}
+  DEMO_MAX_DESCANSOS_PER_VISITOR: ${DEMO_MAX_DESCANSOS_PER_VISITOR:-5}
+  DEMO_COLABORADOR_DNI: ${DEMO_COLABORADOR_DNI:-}
+  DEMO_COLABORADOR_PASSWORD: ${DEMO_COLABORADOR_PASSWORD:-}
+  DEMO_RRHH_DNI: ${DEMO_RRHH_DNI:-}
+  DEMO_RRHH_PASSWORD: ${DEMO_RRHH_PASSWORD:-}
+  # Solo se confía en X-Forwarded-For si la petición viene del proxy (red edge).
+  FORWARDED_ALLOW_IPS: 172.28.0.0/24
+
+# Rotación de logs: sin ella el disco crece sin límite.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-hardening: &hardening
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-humanaiz}
+      POSTGRES_USER: ${POSTGRES_USER:-humanaiz}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD en .env}
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - backend
+    logging: *logging
+    security_opt:
+      - no-new-privileges:true
+
+  # Aplica migraciones (y siembra la demo si está activa) una sola vez por
+  # despliegue, antes de que arranque la API.
+  migrate:
+    build:
+      context: ./backend
+    image: humanaiz-api:local
+    command: ["sh", "-c", "alembic upgrade head && humanaiz seed-demo --if-enabled"]
+    restart: "no"
+    environment: *api-env
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend
+    logging: *logging
+    <<: *hardening
+
+  api:
+    image: humanaiz-api:local
+    restart: unless-stopped
+    environment: *api-env
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    expose:
+      - "8000"
+    networks:
+      - edge
+      - backend
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    ulimits:
+      core: 0
+    # Sin swap: la memoria del proceso (donde vive la clave durante una
+    # petición) nunca se escribe a disco.
+    mem_limit: 1g
+    memswap_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 140s
+    logging: *logging
+    <<: *hardening
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    image: humanaiz-web:local
+    restart: unless-stopped
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1/32}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp"
+    volumes:
+      # caddy_data guarda los certificados: si se pierde, Let's Encrypt puede
+      # aplicar su límite de emisiones.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - edge
+    logging: *logging
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+
+networks:
+  # Red del proxy. La API también sale por aquí hacia los proveedores de IA.
+  edge:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+  # Red de la base de datos: sin salida a internet ni puertos publicados.
+  backend:
+    internal: true
+
+volumes:
+  pgdata:
+  uploads:
+  caddy_data:
+  caddy_config:
