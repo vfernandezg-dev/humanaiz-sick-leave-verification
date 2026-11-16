@@ -5,7 +5,7 @@
 
 🏆 **Proyecto ganador del 1.er puesto en la Hackathon - Grupo Rocio.**
 
-**Demo:** [humaniz.vfernandezg.dev](https://humaniz.vfernandezg.dev) · en español e inglés, con
+**Demo:** [humanaiz.vfernandezg.dev](https://humanaiz.vfernandezg.dev) · en español e inglés, con
 cuentas de prueba públicas en la pantalla de ingreso.
 
 Registro y verificación asistida de descansos médicos. Los colaboradores suben su certificado
@@ -170,7 +170,7 @@ porque viven en PostgreSQL.
 
 ## Despliegue en un solo contenedor (Vercel)
 
-La demo pública, [humaniz.vfernandezg.dev](https://humaniz.vfernandezg.dev), corre en Vercel con
+La demo pública, [humanaiz.vfernandezg.dev](https://humanaiz.vfernandezg.dev), corre en Vercel con
 PostgreSQL en Neon. Su infraestructura (proyecto, base, dominio y firewall) está en
 [`vfernandezg-infra/stacks/humanaiz`](https://github.com/vfernandezg-dev/vfernandezg-infra/tree/main/stacks/humanaiz).
 
