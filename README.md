@@ -3,6 +3,9 @@
 > **Proyecto de concurso, sin uso real.** Es una demostración: todo lo que contiene es ficticio y
 > no tiene validez médica, legal ni laboral. No se deben subir datos ni documentos reales.
 
+**Demo:** [humaniz.vfernandezg.dev](https://humaniz.vfernandezg.dev) · en español e inglés, con
+cuentas de prueba públicas en la pantalla de ingreso.
+
 Registro y verificación asistida de descansos médicos. Los colaboradores suben su certificado
 (una foto o captura), Recursos Humanos lo revisa y decide, y cualquiera de los dos puede pedir una
 segunda lectura a un modelo de IA **usando su propia clave** (BYOK).
@@ -28,12 +31,13 @@ segunda lectura a un modelo de IA **usando su propia clave** (BYOK).
 
 | Carpeta | Contenido |
 |---|---|
-| `frontend/` | SPA en Vite + React + TypeScript estricto (pnpm) |
+| `frontend/` | SPA en Vite + React 19 + TypeScript estricto + Tailwind CSS 4 (pnpm), en español e inglés |
 | `backend/` | API en FastAPI y motor de escaneo (uv, Python 3.14) |
 | `backend/src/humanaiz/scanning/` | Motor de escaneo: no importa nada del resto de la app |
 | `deploy/` | `Caddyfile` del proxy y script de respaldo |
 | `docker-compose.yml` | Stack de producción: `db`, `migrate`, `api`, `web` |
 | `docker-compose.dev.yml` | Solo un PostgreSQL local para desarrollo y tests |
+| `Dockerfile` | Imagen única (web + API) para plataformas de un contenedor, como Vercel |
 
 La aplicación y la API comparten origen (Caddy sirve el SPA y reenvía `/api`), así que **no hay
 CORS**: ningún otro sitio puede llamar a la API desde un navegador.
@@ -77,7 +81,7 @@ TRUSTED_PROXIES=10.0.0.0/8      # IP o red de tu proxy
 PUBLIC_ORIGIN=https://tu-dominio
 ```
 
-Tu proxy debe reenviar la cabecera `Host`, permitir cuerpos de 11 MB y dar al menos 130 s a
+Tu proxy debe reenviar la cabecera `Host`, permitir cuerpos de 6 MB y dar al menos 130 s a
 `POST /api/v1/descansos/*/analisis`. **Importante:** si registra las peticiones, que no
 registre cabeceras: la clave de IA viaja en `X-LLM-Api-Key`. No pongas delante una CDN que
 termine TLS por la misma razón.
@@ -91,7 +95,8 @@ La interfaz deja claro en todo momento que es un proyecto de concurso:
   *Privacidad* (páginas públicas en `/como-funciona`, `/terminos` y `/privacidad`).
 - Para entrar hay que aceptar los términos y la política de privacidad. La API lo exige en cada
   inicio de sesión y la bitácora guarda qué versión se aceptó.
-- Al registrar un descanso hay que confirmar que el documento es ficticio.
+- Al registrar un descanso hay que confirmar que la imagen es ficticia y cumple los términos,
+  que detallan qué se puede subir, qué está prohibido y qué pasa si se incumple.
 
 | Variable | Para qué |
 |---|---|
@@ -155,7 +160,8 @@ volumen `caddy_data` guarda los certificados TLS; consérvalo entre despliegues.
 **Escalado.** La API corre con un solo proceso asíncrono: las llamadas a los proveedores no
 bloquean hilos y los límites en memoria son exactos. Para crecer se añaden réplicas del
 servicio `api`, se configura `RATE_LIMIT_STORAGE_URI=redis://…` y se sustituye el
-almacenamiento local por uno compatible con S3 implementando `storage/base.py`. Las sesiones,
+almacenamiento local por uno compartido: la base de datos (`STORAGE_BACKEND=database`) o uno
+compatible con S3 implementando `storage/base.py`. Las sesiones,
 el candado de la purga y el "un análisis a la vez por documento" ya funcionan entre réplicas
 porque viven en PostgreSQL.
 
@@ -179,6 +185,8 @@ PostgreSQL, por si arrancan varias instancias a la vez. Diferencias con docker c
 
 - Vercel corta los cuerpos de más de 4,5 MB: la imagen máxima baja a 4 MB (`MAX_UPLOAD_BYTES`).
   El navegador reduce antes las fotos grandes, así que en la práctica no se nota.
+- Neon gratuito da 0,5 GB: la demo limita las imágenes a 200 MB en total (`STORAGE_MAX_MB`) y
+  a 100 subidas por hora entre todos (`RATE_LIMIT_UPLOAD_GLOBAL`).
 - Los límites de uso viven en memoria de cada instancia. Con poco tráfico hay una sola; el
   firewall de Vercel añade un límite por IP en el borde.
 - La purga corre al arrancar cada instancia y cada 15 minutos mientras sigue activa: lo
@@ -205,7 +213,7 @@ el servidor al que se envía su documento.
 |---|---|---|
 | Anthropic, OpenAI, Google Gemini | SDK oficial de cada uno, con salida estructurada estricta | Modelos sugeridos y cualquier otro |
 | OpenRouter | API compatible con OpenAI | Una clave da acceso a cientos de modelos; se listan solo los que leen imágenes y devuelven JSON |
-| xAI, Mistral, Groq | API compatible con OpenAI | Modo JSON con el esquema en las instrucciones; Groq lee hasta 3 páginas |
+| xAI, Mistral, Groq | API compatible con OpenAI | Modo JSON con el esquema en las instrucciones |
 
 Para añadir otro proveedor compatible basta una entrada en `backend/src/humanaiz/scanning/catalog.py`.
 
@@ -230,7 +238,7 @@ datos y el volumen de archivos. No debe aparecer en ninguno.
 
 ### Qué decide el modelo y qué decide el código
 
-El modelo recibe las páginas del documento como imágenes y devuelve campos (DNI, nombre, CITT,
+El modelo recibe la imagen re-codificada del certificado y devuelve campos (DNI, nombre, CITT,
 fechas, días, contingencia, CMP) contra un esquema estricto. **No emite veredicto.** Las
 validaciones las hace `scanning/rules.py`, que es código puro:
 
@@ -262,7 +270,8 @@ muestras precargadas de la demo usan el mismo generador. Tipografía DejaVu (lic
 
 ### Imágenes
 
-Solo se aceptan **imágenes JPG, PNG o WebP de hasta 5 MB**, con al menos 400 px de lado.
+Solo se aceptan **imágenes JPG, PNG o WebP de hasta 5 MB** (4 MB en Vercel), con al menos
+400 px de lado.
 PDF, HEIC, GIF, SVG, documentos, comprimidos y cualquier otra cosa se rechazan, y el servidor no
 instala ninguna librería de PDF (menos superficie de ataque).
 
@@ -301,7 +310,8 @@ total no depende de quién llama y es el que protege de verdad al servidor.
 | Ingresar | 5/min por IP y DNI | 20/min | 30/hora por cuenta real desde cualquier IP |
 
 Además: como mucho 5 descansos por visitante de la demo, 2 GB de imágenes en total
-(`STORAGE_MAX_MB`), 500 MB libres mínimos en disco y 2 imágenes procesándose a la vez. Si alguien
+(`STORAGE_MAX_MB`; 200 MB en la demo de Vercel), 500 MB libres mínimos en disco y 2 imágenes
+procesándose a la vez. Si alguien
 rota IPs para agotar el tope total, la demo responde «vuelve más tarde» a todos durante esa hora,
 pero el servidor no se satura. Frente a un ataque distribuido de verdad (DDoS), la protección
 corresponde a la red: un proxy o CDN delante del servidor.
@@ -324,7 +334,8 @@ ninguno de los dos, inglés), y el selector ES / EN de la cabecera lo cambia y l
 
 ## Desarrollo local
 
-Requisitos: Docker, [uv](https://docs.astral.sh/uv/), Node 24 o superior (las imágenes usan Node 26 LTS) y pnpm 11.
+Requisitos: Docker, [uv](https://docs.astral.sh/uv/), Node 24 o superior (las imágenes usan
+Node 26 LTS) y pnpm 11.
 
 ```bash
 # 1. Base de datos (127.0.0.1:54329; cámbialo con DEV_DB_PORT si está ocupado)
