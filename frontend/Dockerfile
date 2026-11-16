@@ -2,8 +2,8 @@
 # Contexto de build: la raíz del repo (necesita frontend/ y deploy/Caddyfile).
 
 # ---------- build del SPA ----------
-FROM node:24-slim AS build
-RUN npm install --global pnpm@11.1.2
+FROM node:26-slim AS build
+RUN npm install --global pnpm@11.28.12
 WORKDIR /app
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \

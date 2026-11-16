@@ -34,12 +34,12 @@ jobs:
       DATABASE_URL: postgresql+asyncpg://humanaiz:humanaiz@127.0.0.1:5432/humanaiz_test
       TEST_DATABASE_URL: postgresql+asyncpg://humanaiz:humanaiz@127.0.0.1:5432/humanaiz_test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
       - name: Instalar uv
-        run: pipx install uv==0.9.7
+        run: pipx install uv==0.13.8
       - name: Dependencias
         run: uv sync --frozen
       - name: Lint y formato
@@ -59,12 +59,12 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: "24"
+          node-version: "26"
       - name: Instalar pnpm
-        run: npm install --global pnpm@11.1.2
+        run: npm install --global pnpm@11.28.12
       - name: Dependencias
         run: pnpm install --frozen-lockfile
       - name: Lint
@@ -83,7 +83,7 @@ jobs:
   imagenes:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Construir imágenes
         env:
           PUBLIC_ORIGIN: https://ci.example

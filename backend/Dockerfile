@@ -3,7 +3,7 @@ ARG PYTHON_VERSION=3.14
 
 # ---------- dependencias y paquete ----------
 FROM python:${PYTHON_VERSION}-slim AS builder
-COPY --from=ghcr.io/astral-sh/uv:0.9.7 /uv /bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.13.8 /uv /bin/uv
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PYTHON_DOWNLOADS=never \
