@@ -106,6 +106,7 @@ def web(tmp_path: Path) -> Path:
     (raiz / "assets").mkdir(parents=True)
     (raiz / "index.html").write_text("<!doctype html><title>HumanAIz</title>", encoding="utf-8")
     (raiz / "assets" / "index-abc123.js").write_text("console.log(1)", encoding="utf-8")
+    (raiz / "robots.txt").write_text("User-agent: *\nDisallow: /\n", encoding="utf-8")
     (tmp_path / "secreto.txt").write_text("no debe salir", encoding="utf-8")
     return raiz
 
@@ -129,6 +130,14 @@ async def test_la_api_sirve_la_web_con_las_cabeceras_de_seguridad(
         asset = await cliente.get("/assets/index-abc123.js")
         assert asset.headers["content-type"].startswith("text/javascript")
         assert "immutable" in asset.headers["cache-control"]
+        assert "immutable" in asset.headers["vercel-cdn-cache-control"]
+
+        # La CDN guarda la web hasta el siguiente despliegue (que la vacía): una visita
+        # sin JavaScript no llega al contenedor. El navegador la revalida contra la CDN.
+        robots = await cliente.get("/robots.txt")
+        for respuesta in (inicio, spa, robots):
+            assert respuesta.headers["vercel-cdn-cache-control"] == "max-age=31536000"
+            assert respuesta.headers["cache-control"] == "no-cache"
 
         # Un archivo que no existe es 404, no el SPA.
         assert (await cliente.get("/assets/no-existe.js")).status_code == 404
