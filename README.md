@@ -194,6 +194,12 @@ PostgreSQL, por si arrancan varias instancias a la vez. Diferencias con docker c
   firewall de Vercel añade un límite por IP en el borde.
 - La purga corre al arrancar cada instancia y cada 15 minutos mientras sigue activa: lo
   caducado puede tardar algo más en borrarse si nadie visita la demo.
+- Vercel factura la memoria del contenedor mientras sigue encendido (unos 5 minutos tras la
+  última petición). Para que solo lo despierten las visitas reales, la CDN guarda la web
+  (`index.html`, las rutas del SPA y `public/`) hasta el siguiente despliegue, y el firewall
+  redirige a la portada desde el borde cualquier ruta que no exista. Una ruta nueva del SPA
+  tiene que añadirse también a la regla del firewall (`stacks/humanaiz/protection.tf` de
+  `vfernandezg-infra`).
 
 ## Cómo funciona el análisis con IA (BYOK)
 

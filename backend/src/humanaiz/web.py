@@ -55,11 +55,19 @@ _TIPOS = {
 }
 
 # Los assets llevan hash en el nombre: inmutables, también en la CDN de la
-# plataforma. El HTML se revalida siempre en el navegador; la CDN puede servir
-# una copia breve mientras arranca un contenedor en frío (cada despliegue la invalida).
-_CACHE_ASSETS = "public, max-age=31536000, immutable"
-_CACHE_HTML = "no-cache"
-_CDN_HTML = "max-age=60, stale-while-revalidate=86400"
+# plataforma. El resto (index.html, las rutas del SPA y los archivos de public/)
+# solo cambia al desplegar, y cada despliegue vacía la CDN: la CDN lo guarda hasta
+# entonces y el navegador lo revalida contra ella. Así una visita sin JavaScript
+# (un rastreador, la vista previa de un enlace) no despierta el contenedor, que en
+# Vercel factura su memoria mientras sigue encendido.
+_CABECERAS_ASSETS = {
+    "Cache-Control": "public, max-age=31536000, immutable",
+    "Vercel-CDN-Cache-Control": "public, max-age=31536000, immutable",
+}
+_CABECERAS_WEB = {
+    "Cache-Control": "no-cache",
+    "Vercel-CDN-Cache-Control": "max-age=31536000",
+}
 
 
 class WebEstatica:
@@ -98,19 +106,12 @@ class WebEstatica:
         dentro = candidato == self.raiz or self.raiz in candidato.parents
         if dentro and candidato.is_file():
             es_asset = relativa.parts[:1] == ("assets",)
-            cabeceras = {"Cache-Control": _CACHE_ASSETS if es_asset else _CACHE_HTML}
-            if es_asset:
-                cabeceras["Vercel-CDN-Cache-Control"] = _CACHE_ASSETS
-            elif candidato == self.indice:
-                cabeceras["Vercel-CDN-Cache-Control"] = _CDN_HTML
-            return self._servir(candidato, cabeceras)
+            return self._servir(candidato, _CABECERAS_ASSETS if es_asset else _CABECERAS_WEB)
         # Un archivo con extensión que no existe es un 404 de verdad; cualquier
         # otra ruta es del SPA (react-router) y recibe index.html.
         if relativa.suffix:
             return Response(status_code=404, headers={"Cache-Control": "no-store"})
-        return self._servir(
-            self.indice, {"Cache-Control": _CACHE_HTML, "Vercel-CDN-Cache-Control": _CDN_HTML}
-        )
+        return self._servir(self.indice, _CABECERAS_WEB)
 
     def _servir(self, archivo: Path, cabeceras: dict[str, str]) -> Response:
         tipo = _TIPOS.get(archivo.suffix.lower(), "application/octet-stream")
